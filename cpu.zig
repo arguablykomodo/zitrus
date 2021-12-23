@@ -1,4 +1,5 @@
 const std = @import("std");
+const writer = @import("utils/slice_writer.zig").writer;
 
 const MAX_CORES = 64;
 const LINE_COLUMNS = 10;
@@ -48,23 +49,21 @@ pub fn main() !void {
         defer file.close();
         const reader = file.reader();
 
+        var index: usize = 0;
+        const out_writer = writer(out_buf[0..], &index);
+
         const total = try parseLine(&reader, 0);
-        var offset = std.fmt.formatIntBuf(&out_buf, @floatToInt(std.math.IntFittingRange(0, 100), @round(total * 100)), 10, .lower, .{});
-        out_buf[offset] = '%';
-        out_buf[offset + 1] = ' ';
-        offset += 2;
+        try std.fmt.formatInt(@floatToInt(std.math.IntFittingRange(0, 100), @round(total * 100)), 10, .lower, .{}, out_writer);
+        try out_writer.writeAll("% ");
 
         var i: std.math.IntFittingRange(0, MAX_CORES) = 1;
         while ((try reader.readByte()) != 'i') : (i += 1) {
             const percentage = try parseLine(&reader, i);
-            out_buf[offset] = 0xE2;
-            out_buf[offset + 1] = 0x96;
-            out_buf[offset + 2] = 0x81 + @floatToInt(u8, @floor(8 * percentage));
-            offset += 3;
+            try out_writer.writeAll("\xE2\x96");
+            try out_writer.writeByte(0x81 + @floatToInt(u8, @floor(8 * percentage)));
         }
-        out_buf[offset] = '\n';
-        out_buf[offset + 1] = 0;
+        try out_writer.writeAll("\n\x00");
 
-        try stdout.writeAll(out_buf[0 .. offset + 1]);
+        try stdout.writeAll(out_buf[0..index]);
     }
 }
