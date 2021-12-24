@@ -1,6 +1,7 @@
 const std = @import("std");
 const writer = @import("utils/slice_writer.zig").writer;
 const writeBar = @import("utils/bar.zig").writeBar;
+const writePercentage = @import("utils/percentage.zig").writePercentage;
 
 const MAX_CORES = 64;
 const LINE_COLUMNS = 10;
@@ -54,8 +55,8 @@ pub fn main() !void {
         const out_writer = writer(out_buf[0..], &index);
 
         const total = try parseLine(&reader, 0);
-        try std.fmt.formatInt(@floatToInt(std.math.IntFittingRange(0, 100), @round(total * 100)), 10, .lower, .{}, out_writer);
-        try out_writer.writeAll("% ");
+        try writePercentage(total, out_writer);
+        try out_writer.writeByte(' ');
 
         var i: std.math.IntFittingRange(0, MAX_CORES) = 1;
         while ((try reader.readByte()) != 'i') : (i += 1) {
