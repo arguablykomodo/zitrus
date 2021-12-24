@@ -1,5 +1,6 @@
 const std = @import("std");
 const writer = @import("utils/slice_writer.zig").writer;
+const writeBar = @import("utils/bar.zig").writeBar;
 
 const MAX_CORES = 64;
 const LINE_COLUMNS = 10;
@@ -59,8 +60,7 @@ pub fn main() !void {
         var i: std.math.IntFittingRange(0, MAX_CORES) = 1;
         while ((try reader.readByte()) != 'i') : (i += 1) {
             const percentage = try parseLine(&reader, i);
-            try out_writer.writeAll("\xE2\x96");
-            try out_writer.writeByte(0x81 + @floatToInt(u8, @floor(8 * percentage)));
+            try writeBar(percentage, out_writer);
         }
         try out_writer.writeAll("\n\x00");
 
