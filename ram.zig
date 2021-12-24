@@ -5,8 +5,8 @@ const writePercentage = @import("utils/percentage.zig").writePercentage;
 
 // row name + places for a u32 + unit
 const MAX_LINE_LENGTH = 16 + 10 + 3;
-// percentage + space + bar
-const MAX_OUT_LENGTH = 4 + 1 + 3;
+// percentage + space + bar + newline
+const MAX_OUT_LENGTH = 4 + 1 + 3 + 1;
 
 const INTERVAL = 1000000000;
 
@@ -40,7 +40,7 @@ pub fn main() !void {
         try writePercentage(percentage, out_writer);
         try out_writer.writeByte(' ');
         try writeBar(percentage, out_writer);
-        try out_writer.writeAll("\n");
+        try out_writer.writeByte('\n');
         try stdout.writeAll(out_buf[0..index]);
     }
 }

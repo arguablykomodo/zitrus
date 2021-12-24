@@ -6,10 +6,10 @@ const writePercentage = @import("utils/percentage.zig").writePercentage;
 const MAX_CORES = 64;
 const LINE_COLUMNS = 10;
 
-// cpu name, plus (a space + decimal places for a u32) times columns
+// name + (space + u32) * columns
 const MAX_LINE_LENGTH = 4 + (1 + 10) * LINE_COLUMNS;
-// percentage, plus percentage sign, plus a space, plus block element length times max cores
-const MAX_OUT_LENGTH = 3 + 1 + 1 + 3 * (MAX_CORES - 1);
+// percentage + space + bar * cores + newline
+const MAX_OUT_LENGTH = 4 + 1 + 3 * (MAX_CORES - 1) + 1;
 
 const INTERVAL = 1000000000;
 
@@ -63,7 +63,7 @@ pub fn main() !void {
             const percentage = try parseLine(&reader, i);
             try writeBar(percentage, out_writer);
         }
-        try out_writer.writeAll("\n\x00");
+        try out_writer.writeByte('\n');
 
         try stdout.writeAll(out_buf[0..index]);
     }
