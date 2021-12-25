@@ -34,7 +34,7 @@ fn parseLine(reader: *const std.fs.File.Reader) !?Bytes {
 }
 
 pub fn main() !void {
-    const stdout = std.io.getStdOut();
+    const stdout = std.io.getStdOut().writer();
     while (true) : (std.time.sleep(INTERVAL * 1000000)) {
         const file = try std.fs.openFileAbsolute("/proc/net/dev", .{ .read = true });
         defer file.close();
@@ -53,7 +53,7 @@ pub fn main() !void {
         const up_speed = (new_bytes.up - prev_bytes.up) / (INTERVAL / 1000);
         const down_speed = (new_bytes.down - prev_bytes.down) / (INTERVAL / 1000);
 
-        try std.fmt.format(stdout.writer(), "↓{:.0} ↑{:.0}\n", .{
+        try std.fmt.format(stdout, "↓{:.0} ↑{:.0}\n", .{
             std.fmt.fmtIntSizeDec(down_speed),
             std.fmt.fmtIntSizeDec(up_speed)
         });

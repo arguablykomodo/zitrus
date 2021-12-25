@@ -1,5 +1,4 @@
 const std = @import("std");
-const writer = @import("utils/slice_writer.zig").writer;
 const writeBar = @import("utils/bar.zig").writeBar;
 const writePercentage = @import("utils/percentage.zig").writePercentage;
 
@@ -8,8 +7,6 @@ const LINE_COLUMNS = 10;
 
 // name + (space + u32) * columns
 const MAX_LINE_LENGTH = 4 + (1 + 10) * LINE_COLUMNS;
-// percentage + space + bar * cores + newline
-const MAX_OUT_LENGTH = 4 + 1 + 3 * (MAX_CORES - 1) + 1;
 
 const INTERVAL = 1000000000;
 
@@ -20,7 +17,6 @@ const CoreStat = struct {
 
 var stats = [_]CoreStat{.{ .total = 0, .idle = 0 }} ** MAX_CORES;
 var line_buf: [MAX_LINE_LENGTH]u8 = undefined;
-var out_buf: [MAX_OUT_LENGTH]u8 = undefined;
 
 fn parseLine(reader: *const std.fs.File.Reader, stat_i: std.math.IntFittingRange(0, MAX_CORES)) !f32 {
     const line = try reader.readUntilDelimiter(&line_buf, '\n');
@@ -45,26 +41,21 @@ fn parseLine(reader: *const std.fs.File.Reader, stat_i: std.math.IntFittingRange
 }
 
 pub fn main() !void {
-    const stdout = std.io.getStdOut();
+    const stdout = std.io.getStdOut().writer();
     while (true) : (std.time.sleep(INTERVAL)) {
         const file = try std.fs.openFileAbsolute("/proc/stat", .{ .read = true });
         defer file.close();
         const reader = file.reader();
 
-        var index: usize = 0;
-        const out_writer = writer(out_buf[0..], &index);
-
         const total = try parseLine(&reader, 0);
-        try writePercentage(total, out_writer);
-        try out_writer.writeByte(' ');
+        try writePercentage(total, stdout);
+        try stdout.writeByte(' ');
 
         var i: std.math.IntFittingRange(0, MAX_CORES) = 1;
         while ((try reader.readByte()) != 'i') : (i += 1) {
             const percentage = try parseLine(&reader, i);
-            try writeBar(percentage, out_writer);
+            try writeBar(percentage, stdout);
         }
-        try out_writer.writeByte('\n');
-
-        try stdout.writeAll(out_buf[0..index]);
+        try stdout.writeByte('\n');
     }
 }
