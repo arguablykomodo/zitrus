@@ -53,8 +53,8 @@ pub fn main() !void {
             new_bytes.down += bytes.down;
         }
 
-        const up_speed = (new_bytes.up - prev_bytes.up) / (interval / 1000);
-        const down_speed = (new_bytes.down - prev_bytes.down) / (interval / 1000);
+        const up_speed = (new_bytes.up - prev_bytes.up) * 1000 / interval;
+        const down_speed = (new_bytes.down - prev_bytes.down) * 1000 / interval;
 
         try std.fmt.format(stdout, "↓{:.0} ↑{:.0}\n", .{
             std.fmt.fmtIntSizeDec(down_speed),
