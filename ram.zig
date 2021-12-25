@@ -5,8 +5,6 @@ const writePercentage = @import("utils/percentage.zig").writePercentage;
 // row name + places for a u32 + unit
 const MAX_LINE_LENGTH = 16 + 10 + 3;
 
-const INTERVAL = 1000000000;
-
 var line_buf: [MAX_LINE_LENGTH]u8 = undefined;
 
 fn parseLine(reader: *const std.fs.File.Reader) !u32 {
@@ -20,7 +18,12 @@ fn parseLine(reader: *const std.fs.File.Reader) !u32 {
 
 pub fn main() !void {
     const stdout = std.io.getStdOut().writer();
-    while (true) : (std.time.sleep(INTERVAL)) {
+
+    var args = std.process.args();
+    _ = args.skip();
+    const interval = if (args.nextPosix()) |arg| try std.fmt.parseUnsigned(u64, arg, 10) else 1000;
+
+    while (true) : (std.time.sleep(interval * 1000000)) {
         const file = try std.fs.openFileAbsolute("/proc/meminfo", .{ .read = true });
         defer file.close();
         const reader = file.reader();

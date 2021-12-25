@@ -1,7 +1,5 @@
 const std = @import("std");
 
-const INTERVAL = 1000;
-
 // name + colon + (space + u64) * columns
 const MAX_LINE_LENGTH = 6 + 1 + (1 + 19) * 16;
 
@@ -35,7 +33,12 @@ fn parseLine(reader: *const std.fs.File.Reader) !?Bytes {
 
 pub fn main() !void {
     const stdout = std.io.getStdOut().writer();
-    while (true) : (std.time.sleep(INTERVAL * 1000000)) {
+
+    var args = std.process.args();
+    _ = args.skip();
+    const interval = if (args.nextPosix()) |arg| try std.fmt.parseUnsigned(u64, arg, 10) else 1000;
+
+    while (true) : (std.time.sleep(interval * 1000000)) {
         const file = try std.fs.openFileAbsolute("/proc/net/dev", .{ .read = true });
         defer file.close();
         const reader = file.reader();
@@ -50,8 +53,8 @@ pub fn main() !void {
             new_bytes.down += bytes.down;
         }
 
-        const up_speed = (new_bytes.up - prev_bytes.up) / (INTERVAL / 1000);
-        const down_speed = (new_bytes.down - prev_bytes.down) / (INTERVAL / 1000);
+        const up_speed = (new_bytes.up - prev_bytes.up) / (interval / 1000);
+        const down_speed = (new_bytes.down - prev_bytes.down) / (interval / 1000);
 
         try std.fmt.format(stdout, "↓{:.0} ↑{:.0}\n", .{
             std.fmt.fmtIntSizeDec(down_speed),

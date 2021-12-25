@@ -8,8 +8,6 @@ const LINE_COLUMNS = 10;
 // name + (space + u32) * columns
 const MAX_LINE_LENGTH = 4 + (1 + 10) * LINE_COLUMNS;
 
-const INTERVAL = 1000000000;
-
 const CoreStat = struct {
     idle: u32,
     total: u32,
@@ -42,7 +40,12 @@ fn parseLine(reader: *const std.fs.File.Reader, stat_i: std.math.IntFittingRange
 
 pub fn main() !void {
     const stdout = std.io.getStdOut().writer();
-    while (true) : (std.time.sleep(INTERVAL)) {
+
+    var args = std.process.args();
+    _ = args.skip();
+    const interval = if (args.nextPosix()) |arg| try std.fmt.parseUnsigned(u64, arg, 10) else 1000;
+
+    while (true) : (std.time.sleep(interval * 1000000)) {
         const file = try std.fs.openFileAbsolute("/proc/stat", .{ .read = true });
         defer file.close();
         const reader = file.reader();
