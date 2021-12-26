@@ -1,12 +1,9 @@
 const std = @import("std");
 
-// name + colon + (space + u64) * columns
-const MAX_LINE_LENGTH = 6 + 1 + (1 + 19) * 16;
-
 const Bytes = struct { up: u64, down: u64 };
 
 var prev_bytes: Bytes = .{ .up = 0, .down = 0 };
-var line_buf: [MAX_LINE_LENGTH]u8 = undefined;
+var line_buf: [6 + 1 + (1 + 19) * 16]u8 = undefined; // name + colon + (space + u64) * columns
 
 fn parseLine(reader: *const std.fs.File.Reader) !?Bytes {
     const line = if (reader.readUntilDelimiter(&line_buf, '\n')) |l| l else |err| switch (err) {

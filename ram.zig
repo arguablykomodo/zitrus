@@ -2,10 +2,7 @@ const std = @import("std");
 const writeBar = @import("utils/bar.zig").writeBar;
 const writePercentage = @import("utils/percentage.zig").writePercentage;
 
-// row name + places for a u32 + unit
-const MAX_LINE_LENGTH = 16 + 10 + 3;
-
-var line_buf: [MAX_LINE_LENGTH]u8 = undefined;
+var line_buf: [16 + 10 + 3]u8 = undefined; // row name + places for a u32 + unit
 
 fn parseLine(reader: *const std.fs.File.Reader) !u32 {
     const line = try reader.readUntilDelimiter(&line_buf, '\n');

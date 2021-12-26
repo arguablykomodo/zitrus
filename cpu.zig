@@ -5,16 +5,13 @@ const writePercentage = @import("utils/percentage.zig").writePercentage;
 const MAX_CORES = 64;
 const LINE_COLUMNS = 10;
 
-// name + (space + u32) * columns
-const MAX_LINE_LENGTH = 4 + (1 + 10) * LINE_COLUMNS;
-
 const CoreStat = struct {
     idle: u32,
     total: u32,
 };
 
 var stats = [_]CoreStat{.{ .total = 0, .idle = 0 }} ** MAX_CORES;
-var line_buf: [MAX_LINE_LENGTH]u8 = undefined;
+var line_buf: [4 + (1 + 10) * LINE_COLUMNS]u8 = undefined; // name + (space + u32) * columns
 
 fn parseLine(reader: *const std.fs.File.Reader, stat_i: std.math.IntFittingRange(0, MAX_CORES)) !f32 {
     const line = try reader.readUntilDelimiter(&line_buf, '\n');
