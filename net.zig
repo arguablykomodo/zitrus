@@ -1,38 +1,42 @@
 const std = @import("std");
 
-const Bytes = struct { up: u64, down: u64 };
-
-var prev_bytes: Bytes = .{ .up = 0, .down = 0 };
+var column: u4 = undefined;
+var prev_bytes: u64 = 0;
 var line_buf: [6 + 1 + (1 + 19) * 16]u8 = undefined; // name + colon + (space + u64) * columns
 
-fn parseLine(reader: *const std.fs.File.Reader) !?Bytes {
+fn parseLine(reader: *const std.fs.File.Reader) !?u64 {
     const line = if (reader.readUntilDelimiter(&line_buf, '\n')) |l| l else |err| switch (err) {
         error.EndOfStream => return null,
         else => return err,
     };
 
-    var bytes = Bytes{ .up = undefined, .down = undefined };
     var tokens = std.mem.tokenize(u8, line, " ");
-    _ = tokens.next(); // skip name
+    _ = tokens.next(); // skip interface name
 
-    bytes.down = try std.fmt.parseUnsigned(u64, tokens.next() orelse unreachable, 10);
-    _ = tokens.next(); // packets
-    _ = tokens.next(); // errs
-    _ = tokens.next(); // drop
-    _ = tokens.next(); // fifo
-    _ = tokens.next(); // frame
-    _ = tokens.next(); // compressed
-    _ = tokens.next(); // multicast
-    bytes.up = try std.fmt.parseUnsigned(u64, tokens.next() orelse unreachable, 10);
+    var i: u4 = 0;
+    while (tokens.next()) |token| : (i += 1) {
+        if (i == column) return try std.fmt.parseUnsigned(u64, token, 10);
+    }
 
-    return bytes;
+    unreachable;
 }
 
 pub fn main() !void {
     const stdout = std.io.getStdOut().writer();
 
     var args = std.process.args();
-    _ = args.skip();
+    const launch_arg = args.nextPosix().?;
+
+    if (args.nextPosix()) |arg| {
+        column = if (std.mem.eql(u8, arg, "down")) 0 else if (std.mem.eql(u8, arg, "up")) 8 else {
+            std.log.err("argument must be \"down\" or \"up\", instead found \"{s}\"", .{arg});
+            std.os.exit(1);
+        };
+    } else {
+        try std.fmt.format(stdout, "usage: {s} down|up [interval]\n", .{launch_arg});
+        return;
+    }
+
     const interval = if (args.nextPosix()) |arg| try std.fmt.parseUnsigned(u64, arg, 10) else 1000;
 
     while (true) : (std.time.sleep(interval * 1000000)) {
@@ -44,19 +48,14 @@ pub fn main() !void {
         try reader.skipUntilDelimiterOrEof('\n'); // header 2
         try reader.skipUntilDelimiterOrEof('\n'); // loopback
 
-        var new_bytes = Bytes{ .up = 0, .down = 0 };
+        var new_bytes: u64 = 0;
         while (try parseLine(&reader)) |bytes| {
-            new_bytes.up += bytes.up;
-            new_bytes.down += bytes.down;
+            new_bytes += bytes;
         }
 
-        const up_speed = (new_bytes.up - prev_bytes.up) * 1000 / interval;
-        const down_speed = (new_bytes.down - prev_bytes.down) * 1000 / interval;
+        const speed = (new_bytes - prev_bytes) * 1000 / interval;
 
-        try std.fmt.format(stdout, "↓{:.0} ↑{:.0}\n", .{
-            std.fmt.fmtIntSizeDec(down_speed),
-            std.fmt.fmtIntSizeDec(up_speed)
-        });
+        try std.fmt.format(stdout, "{:.0}\n", .{std.fmt.fmtIntSizeDec(speed)});
 
         prev_bytes = new_bytes;
     }
