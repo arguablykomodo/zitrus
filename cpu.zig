@@ -1,4 +1,5 @@
 const std = @import("std");
+const parseColors = @import("utils/color.zig").parseColors;
 const writeBar = @import("utils/bar.zig").writeBar;
 const writePercentage = @import("utils/percentage.zig").writePercentage;
 
@@ -41,6 +42,7 @@ pub fn main() !void {
     var args = std.process.args();
     _ = args.skip();
     const interval = if (args.nextPosix()) |arg| try std.fmt.parseUnsigned(u64, arg, 10) else 1000;
+    const colors = try parseColors(&args);
 
     while (true) : (std.time.sleep(interval * 1000000)) {
         const file = try std.fs.openFileAbsolute("/proc/stat", .{ .read = true });
@@ -54,7 +56,7 @@ pub fn main() !void {
         var i: std.math.IntFittingRange(0, MAX_CORES) = 1;
         while ((try reader.readByte()) != 'i') : (i += 1) {
             const percentage = try parseLine(&reader, i);
-            try writeBar(percentage, stdout);
+            try writeBar(percentage, colors, stdout);
         }
         try stdout.writeByte('\n');
     }
