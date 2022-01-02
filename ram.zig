@@ -15,7 +15,8 @@ fn parseLine(reader: *const std.fs.File.Reader) !u32 {
 }
 
 pub fn main() !void {
-    const stdout = std.io.getStdOut().writer();
+    var writer = std.io.bufferedWriter(std.io.getStdOut().writer());
+    const stdout = writer.writer();
 
     var args = std.process.args();
     _ = args.skip();
@@ -36,5 +37,6 @@ pub fn main() !void {
         try stdout.writeByte(' ');
         try writeBar(percentage, colors, stdout);
         try stdout.writeByte('\n');
+        try writer.flush();
     }
 }

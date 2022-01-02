@@ -22,7 +22,8 @@ fn parseLine(reader: *const std.fs.File.Reader) !?u64 {
 }
 
 pub fn main() !void {
-    const stdout = std.io.getStdOut().writer();
+    var writer = std.io.bufferedWriter(std.io.getStdOut().writer());
+    const stdout = writer.writer();
 
     var args = std.process.args();
     const launch_arg = args.nextPosix().?;
@@ -56,6 +57,7 @@ pub fn main() !void {
         const speed = (new_bytes - prev_bytes) * 1000 / interval;
 
         try std.fmt.format(stdout, "{:.0}\n", .{std.fmt.fmtIntSizeDec(speed)});
+        try writer.flush();
 
         prev_bytes = new_bytes;
     }
