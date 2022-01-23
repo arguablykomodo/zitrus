@@ -1,7 +1,7 @@
 const std = @import("std");
 const fmt = std.fmt.comptimePrint;
 
-const programs = .{ "cpu", "ram", "net" };
+const programs = .{ "cpu", "ram", "net", "bspwm" };
 
 pub fn build(b: *std.build.Builder) void {
     const target = b.standardTargetOptions(.{});
