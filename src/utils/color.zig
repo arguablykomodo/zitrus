@@ -15,8 +15,7 @@ pub fn parseColors(args: *std.process.ArgIterator) ![]u32 {
 }
 
 pub fn getColor(value: f32, colors: []u32) ?u32 {
-    if (colors.len == 0) return null
-    else if (colors.len == 1) return colors[0];
+    if (colors.len == 0) return null else if (colors.len == 1) return colors[0];
 
     const mapped = value * @intToFloat(f32, colors.len - 1);
     const i = @floatToInt(ColorI, mapped);
