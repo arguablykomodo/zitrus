@@ -19,7 +19,8 @@ fn getPipe() ![]const u8 {
 
 fn formatDesktop(writer: anytype, name: []const u8, focused: bool, focus_color: []const u8) !void {
     if (focused) try std.fmt.format(writer, "%{{B{s}}}", .{focus_color});
-    try std.fmt.format(writer, " {s} %{{B-}}", .{name});
+    try std.fmt.format(writer, " {s} ", .{name});
+    if (focused) try writer.writeAll("%{B-}");
 }
 
 pub fn main() !void {
@@ -31,10 +32,12 @@ pub fn main() !void {
     const monitor_name = args.nextPosix() orelse return error.MissingMonitorArgument;
     const focus_color = args.nextPosix() orelse "-";
 
-    const pipe = (try std.fs.openFileAbsolute(try getPipe(), .{ .read = true })).reader();
+    const pipe = try std.fs.openFileAbsolute(try getPipe(), .{ .read = true });
+    defer pipe.close();
+    const reader = pipe.reader();
 
     while (true) {
-        const input = try pipe.readUntilDelimiter(&REPORT_BUFFER, '\n');
+        const input = try reader.readUntilDelimiter(&REPORT_BUFFER, '\n');
 
         const i = std.mem.indexOf(u8, input, monitor_name) orelse return error.MissingMonitor;
         var tokens = std.mem.tokenize(u8, input[(i + monitor_name.len)..], ":");
