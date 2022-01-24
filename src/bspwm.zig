@@ -1,6 +1,21 @@
 const std = @import("std");
 
-var BUFFER: [1024]u8 = undefined;
+var REPORT_BUFFER: [1024]u8 = undefined;
+var PIPE_BUFFER: [256]u8 = undefined;
+
+fn getPipe() ![]const u8 {
+    const process = try std.ChildProcess.init(&.{ "bspc", "subscribe", "-f", "report" }, std.heap.page_allocator);
+    defer process.deinit();
+    process.stdin_behavior = .Ignore;
+    process.stdout_behavior = .Pipe;
+    try process.spawn();
+    const bytes_read = try process.stdout.?.readAll(&PIPE_BUFFER);
+    switch (try process.wait()) {
+        .Exited => |code| if (code != 0) return error.UnexpectedTerm,
+        else => return error.UnexpectedTerm,
+    }
+    return PIPE_BUFFER[0 .. bytes_read - 1]; // Trim newline
+}
 
 fn formatDesktop(writer: anytype, name: []const u8, focused: bool, focus_color: []const u8) !void {
     if (focused) try std.fmt.format(writer, "%{{B{s}}}", .{focus_color});
@@ -13,14 +28,13 @@ pub fn main() !void {
 
     var args = std.process.args();
     _ = args.skip();
-    const pipe_name = args.nextPosix() orelse return error.MissingPipeArgument;
     const monitor_name = args.nextPosix() orelse return error.MissingMonitorArgument;
     const focus_color = args.nextPosix() orelse "-";
 
-    const pipe = (try std.fs.openFileAbsolute(pipe_name, .{ .read = true })).reader();
+    const pipe = (try std.fs.openFileAbsolute(try getPipe(), .{ .read = true })).reader();
 
     while (true) {
-        const input = try pipe.readUntilDelimiter(&BUFFER, '\n');
+        const input = try pipe.readUntilDelimiter(&REPORT_BUFFER, '\n');
 
         const i = std.mem.indexOf(u8, input, monitor_name) orelse return error.MissingMonitor;
         var tokens = std.mem.tokenize(u8, input[(i + monitor_name.len)..], ":");
