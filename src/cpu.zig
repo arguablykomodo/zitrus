@@ -45,7 +45,7 @@ pub fn main() !void {
     const interval = if (args.nextPosix()) |arg| try std.fmt.parseUnsigned(u64, arg, 10) else 1000;
     const colors = try parseColors(&args);
 
-    while (true) : (std.time.sleep(interval * 1000000)) {
+    while (true) : (std.time.sleep(interval * std.time.ns_per_ms)) {
         const file = try std.fs.openFileAbsolute("/proc/stat", .{ .read = true });
         defer file.close();
         const reader = file.reader();

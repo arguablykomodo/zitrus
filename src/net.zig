@@ -40,7 +40,7 @@ pub fn main() !void {
 
     const interval = if (args.nextPosix()) |arg| try std.fmt.parseUnsigned(u64, arg, 10) else 1000;
 
-    while (true) : (std.time.sleep(interval * 1000000)) {
+    while (true) : (std.time.sleep(interval * std.time.ns_per_ms)) {
         const file = try std.fs.openFileAbsolute("/proc/net/dev", .{ .read = true });
         defer file.close();
         const reader = file.reader();
@@ -54,7 +54,7 @@ pub fn main() !void {
             new_bytes += bytes;
         }
 
-        const speed = (new_bytes - prev_bytes) * 1000 / interval;
+        const speed = (new_bytes - prev_bytes) * std.time.ms_per_s / interval;
 
         try std.fmt.format(stdout, "{:.0}\n", .{std.fmt.fmtIntSizeDec(speed)});
         try writer.flush();
