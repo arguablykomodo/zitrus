@@ -26,9 +26,9 @@ pub fn main() !void {
     const stdout = writer.writer();
 
     var args = std.process.args();
-    const launch_arg = args.nextPosix().?;
+    const launch_arg = args.next().?;
 
-    if (args.nextPosix()) |arg| {
+    if (args.next()) |arg| {
         column = if (std.mem.eql(u8, arg, "down")) 0 else if (std.mem.eql(u8, arg, "up")) 8 else {
             std.log.err("argument must be \"down\" or \"up\", instead found \"{s}\"", .{arg});
             std.os.exit(1);
@@ -38,10 +38,10 @@ pub fn main() !void {
         return;
     }
 
-    const interval = if (args.nextPosix()) |arg| try std.fmt.parseUnsigned(u64, arg, 10) else 1000;
+    const interval = if (args.next()) |arg| try std.fmt.parseUnsigned(u64, arg, 10) else 1000;
 
     while (true) : (std.time.sleep(interval * std.time.ns_per_ms)) {
-        const file = try std.fs.openFileAbsolute("/proc/net/dev", .{ .read = true });
+        const file = try std.fs.openFileAbsolute("/proc/net/dev", .{});
         defer file.close();
         const reader = file.reader();
 

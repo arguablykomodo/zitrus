@@ -42,11 +42,11 @@ pub fn main() !void {
 
     var args = std.process.args();
     _ = args.skip();
-    const interval = if (args.nextPosix()) |arg| try std.fmt.parseUnsigned(u64, arg, 10) else 1000;
+    const interval = if (args.next()) |arg| try std.fmt.parseUnsigned(u64, arg, 10) else 1000;
     const colors = try parseColors(&args);
 
     while (true) : (std.time.sleep(interval * std.time.ns_per_ms)) {
-        const file = try std.fs.openFileAbsolute("/proc/stat", .{ .read = true });
+        const file = try std.fs.openFileAbsolute("/proc/stat", .{});
         defer file.close();
         const reader = file.reader();
 

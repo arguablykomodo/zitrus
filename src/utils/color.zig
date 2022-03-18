@@ -7,7 +7,7 @@ var color_buffer: [MAX_COLORS]u32 = undefined;
 
 pub fn parseColors(args: *std.process.ArgIterator) ![]u32 {
     var i: ColorI = 0;
-    while (args.nextPosix()) |arg| : (i += 1) {
+    while (args.next()) |arg| : (i += 1) {
         if (i == MAX_COLORS) break;
         color_buffer[i] = try std.fmt.parseUnsigned(u32, arg, 16);
     }

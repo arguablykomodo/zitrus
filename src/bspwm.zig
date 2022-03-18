@@ -29,10 +29,10 @@ pub fn main() !void {
 
     var args = std.process.args();
     _ = args.skip();
-    const monitor_name = args.nextPosix() orelse return error.MissingMonitorArgument;
-    const focus_color = args.nextPosix() orelse "-";
+    const monitor_name = args.next() orelse return error.MissingMonitorArgument;
+    const focus_color = args.next() orelse "-";
 
-    const pipe = try std.fs.openFileAbsolute(try getPipe(), .{ .read = true });
+    const pipe = try std.fs.openFileAbsolute(try getPipe(), .{});
     defer pipe.close();
     const reader = pipe.reader();
 
