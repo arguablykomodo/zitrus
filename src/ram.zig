@@ -5,7 +5,7 @@ const writePercentage = @import("utils/percentage.zig").writePercentage;
 
 var line_buf: [16 + 10 + 3]u8 = undefined; // row name + places for a u32 + unit
 
-fn parseLine(reader: *const std.fs.File.Reader) !u32 {
+fn parseLine(reader: anytype) !u32 {
     const line = try reader.readUntilDelimiter(&line_buf, '\n');
 
     var tokens = std.mem.tokenize(u8, line, " ");
@@ -26,7 +26,8 @@ pub fn main() !void {
     while (true) : (std.time.sleep(interval * std.time.ns_per_ms)) {
         const file = try std.fs.openFileAbsolute("/proc/meminfo", .{});
         defer file.close();
-        const reader = file.reader();
+        var buffered = std.io.bufferedReader(file.reader());
+        const reader = buffered.reader();
 
         const total = try parseLine(&reader); // MemTotal
         try reader.skipUntilDelimiterOrEof('\n'); // MemFree

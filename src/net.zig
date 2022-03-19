@@ -4,7 +4,7 @@ var column: u4 = undefined;
 var prev_bytes: u64 = 0;
 var line_buf: [6 + 1 + (1 + 19) * 16]u8 = undefined; // name + colon + (space + u64) * columns
 
-fn parseLine(reader: *const std.fs.File.Reader) !?u64 {
+fn parseLine(reader: anytype) !?u64 {
     const line = if (reader.readUntilDelimiter(&line_buf, '\n')) |l| l else |err| switch (err) {
         error.EndOfStream => return null,
         else => return err,
@@ -43,7 +43,8 @@ pub fn main() !void {
     while (true) : (std.time.sleep(interval * std.time.ns_per_ms)) {
         const file = try std.fs.openFileAbsolute("/proc/net/dev", .{});
         defer file.close();
-        const reader = file.reader();
+        var buffered = std.io.bufferedReader(file.reader());
+        const reader = buffered.reader();
 
         try reader.skipUntilDelimiterOrEof('\n'); // header 1
         try reader.skipUntilDelimiterOrEof('\n'); // header 2

@@ -34,7 +34,8 @@ pub fn main() !void {
 
     const pipe = try std.fs.openFileAbsolute(try getPipe(), .{});
     defer pipe.close();
-    const reader = pipe.reader();
+    var buffered = std.io.bufferedReader(pipe.reader());
+    const reader = buffered.reader();
 
     while (true) {
         const input = try reader.readUntilDelimiter(&REPORT_BUFFER, '\n');

@@ -14,7 +14,7 @@ const CoreStat = struct {
 var stats = [_]CoreStat{.{ .total = 0, .idle = 0 }} ** MAX_CORES;
 var line_buf: [4 + (1 + 10) * LINE_COLUMNS]u8 = undefined; // name + (space + u32) * columns
 
-fn parseLine(reader: *const std.fs.File.Reader, stat_i: std.math.IntFittingRange(0, MAX_CORES)) !f32 {
+fn parseLine(reader: anytype, stat_i: std.math.IntFittingRange(0, MAX_CORES)) !f32 {
     const line = try reader.readUntilDelimiter(&line_buf, '\n');
 
     var tokens = std.mem.tokenize(u8, line, " ");
@@ -48,7 +48,8 @@ pub fn main() !void {
     while (true) : (std.time.sleep(interval * std.time.ns_per_ms)) {
         const file = try std.fs.openFileAbsolute("/proc/stat", .{});
         defer file.close();
-        const reader = file.reader();
+        var buffered = std.io.bufferedReader(file.reader());
+        const reader = buffered.reader();
 
         const total = try parseLine(&reader, 0);
         try writePercentage(total, stdout);
