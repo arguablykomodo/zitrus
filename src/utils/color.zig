@@ -20,7 +20,7 @@ pub fn getColor(value: f32, colors: []u32) ?u32 {
     const mapped = value * @intToFloat(f32, colors.len - 1);
     const i = @floatToInt(ColorI, mapped);
     const c0 = colors[i];
-    const c1 = colors[@minimum(i + 1, colors.len - 1)];
+    const c1 = colors[@min(i + 1, colors.len - 1)];
     const t = mapped - @floor(mapped);
 
     const r = lerp(c0 & 0xFF0000, c1 & 0xFF0000, t);

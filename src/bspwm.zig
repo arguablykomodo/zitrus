@@ -4,8 +4,7 @@ var REPORT_BUFFER: [1024]u8 = undefined;
 var PIPE_BUFFER: [256]u8 = undefined;
 
 fn getPipe() ![]const u8 {
-    const process = try std.ChildProcess.init(&.{ "bspc", "subscribe", "-f", "report" }, std.heap.page_allocator);
-    defer process.deinit();
+    var process = std.ChildProcess.init(&.{ "bspc", "subscribe", "-f", "report" }, std.heap.page_allocator);
     process.stdin_behavior = .Ignore;
     process.stdout_behavior = .Pipe;
     try process.spawn();
