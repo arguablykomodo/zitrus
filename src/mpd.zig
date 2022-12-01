@@ -50,21 +50,7 @@ fn print() !void {
     var title: ?[]const u8 = null;
     var elapsed: f32 = 0;
     var duration: f32 = 0;
-    try mpd_writer.writeAll("currentsong\n");
-    while (try mpd_reader.reader().readUntilDelimiterOrEof(&line_buffer, '\n')) |line| {
-        if (std.mem.eql(u8, line, "OK")) break;
-        var split = std.mem.split(u8, line, key_value_separator);
-        const key = split.first();
-        const val = split.rest();
-        if (std.mem.eql(u8, key, "Artist")) {
-            std.mem.copy(u8, &artist_buffer, val);
-            artist = artist_buffer[0..val.len];
-        } else if (std.mem.eql(u8, key, "Title")) {
-            std.mem.copy(u8, &title_buffer, val);
-            title = title_buffer[0..val.len];
-        }
-    }
-    try mpd_writer.writeAll("status\n");
+    try mpd_writer.writeAll("command_list_begin\ncurrentsong\nstatus\ncommand_list_end\n");
     while (try mpd_reader.reader().readUntilDelimiterOrEof(&line_buffer, '\n')) |line| {
         if (std.mem.eql(u8, line, "OK")) break;
         var split = std.mem.split(u8, line, key_value_separator);
@@ -75,6 +61,12 @@ fn print() !void {
                 playing.store(1, .Release);
                 std.Thread.Futex.wake(&playing, 1);
             } else playing.store(0, .Release);
+        } else if (std.mem.eql(u8, key, "Artist")) {
+            std.mem.copy(u8, &artist_buffer, val);
+            artist = artist_buffer[0..val.len];
+        } else if (std.mem.eql(u8, key, "Title")) {
+            std.mem.copy(u8, &title_buffer, val);
+            title = title_buffer[0..val.len];
         } else if (std.mem.eql(u8, key, "elapsed")) {
             elapsed = try std.fmt.parseFloat(f32, val);
         } else if (std.mem.eql(u8, key, "duration")) {
