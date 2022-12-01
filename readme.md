@@ -16,7 +16,7 @@ will build just the specified fetcher.
 
 Displays CPU utilization as a percentage alongside per-core bars.
 
-<pre><b>cpu</b> [<i>interval</i>] [<i>color</i> ...]</pre>
+<pre><b>zitrus-cpu</b> [<i>interval</i>] [<i>color</i> ...]</pre>
 
 - `interval`: Time between updates, in milliseconds. Defaults to 1000. Shorter
   intervals will lead to faster updates but less useful measurements.
@@ -25,7 +25,7 @@ Displays CPU utilization as a percentage alongside per-core bars.
 
 ### `ram`
 
-<pre><b>ram</b> [<i>interval</i>] [<i>color</i> ...]</pre>
+<pre><b>zitrus-ram</b> [<i>interval</i>] [<i>color</i> ...]</pre>
 
 Displays RAM usage as total percentage alongside a colored bar.
 
@@ -37,7 +37,7 @@ Displays RAM usage as total percentage alongside a colored bar.
 
 Displays download/upload speed of all interfaces (excluding loopback).
 
-<pre><b>net</b> <b>down</b>|<b>up</b> [<i>interval</i>]</pre>
+<pre><b>zitrus-net</b> <b>down</b>|<b>up</b> [<i>interval</i>]</pre>
 
 - `interval`: Time between updates, in milliseconds. Defaults to 1000. Shorter
   intervals will lead to faster updates but less useful measurements.
@@ -47,7 +47,7 @@ Displays download/upload speed of all interfaces (excluding loopback).
 Displays list of current occupied bspwm desktops, with the focused desktop
 highlighted. Requires `bspc` to be on `$PATH`.
 
-<pre><b>bspwm</b> <i>monitor_name</i> [<i>focus_color</i>]</pre>
+<pre><b>zitrus-bspwm</b> <i>monitor_name</i> [<i>focus_color</i>]</pre>
 
 - `monitor_name`: Name of monitor whose desktops will be displayed. `bspc query
   -M --names` can be useful to figure out the name.
@@ -57,4 +57,4 @@ highlighted. Requires `bspc` to be on `$PATH`.
 
 Displays current track artist, title, position and duration.
 
-<pre><b>mpd</b></pre>
+<pre><b>zitrus-mpd</b></pre>

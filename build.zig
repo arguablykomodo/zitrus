@@ -1,5 +1,4 @@
 const std = @import("std");
-const fmt = std.fmt.comptimePrint;
 
 const programs = .{ "cpu", "ram", "net", "bspwm", "mpd" };
 
@@ -8,11 +7,11 @@ pub fn build(b: *std.build.Builder) void {
     const mode = b.standardReleaseOptions();
 
     inline for (programs) |name| {
-        const exe = b.addExecutable(name, fmt("src/{s}.zig", .{name}));
+        const exe = b.addExecutable("zitrus-" ++ name, "src/" ++ name ++ ".zig");
         exe.setTarget(target);
         exe.setBuildMode(mode);
         exe.install();
-        const build_step = b.step(name, fmt("Build the `{s}` program", .{name}));
+        const build_step = b.step(name, "Build the `" ++ name ++ "` program");
         build_step.dependOn(@ptrCast(*std.build.Step, exe.install_step.?));
     }
 }
