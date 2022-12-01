@@ -9,6 +9,9 @@ var artist_buffer = [_]u8{0} ** 1024;
 var line_lock = std.Thread.Mutex{};
 var playing = std.atomic.Atomic(u32).init(0);
 
+threadlocal var mpd_reader: std.io.BufferedReader(4096, std.net.Stream.Reader) = undefined;
+threadlocal var mpd_writer: std.net.Stream.Writer = undefined;
+
 fn connect(alloc: std.mem.Allocator) !std.net.Stream {
     const stream = blk: {
         const port = if (std.os.getenv("MPD_PORT")) |port| try std.fmt.parseInt(u16, port, 10) else 6600;
@@ -23,7 +26,9 @@ fn connect(alloc: std.mem.Allocator) !std.net.Stream {
         if (std.net.connectUnixSocket("/run/mpd/socket")) |stream| break :blk stream else |_| {}
         break :blk try std.net.tcpConnectToHost(alloc, "localhost", port);
     };
-    const reply = try stream.reader().readUntilDelimiter(&line_buffer, '\n');
+    mpd_reader = std.io.bufferedReader(stream.reader());
+    mpd_writer = stream.writer();
+    const reply = try mpd_reader.reader().readUntilDelimiter(&line_buffer, '\n');
     if (!std.mem.startsWith(u8, reply, "OK MPD ")) return error.MissingMpdReply;
     return stream;
 }
@@ -36,7 +41,7 @@ fn fmtTime(seconds: f32) std.fmt.Formatter(timeFormatter) {
     return .{ .data = seconds };
 }
 
-fn print(reader: std.net.Stream.Reader, writer: std.net.Stream.Writer) !void {
+fn print() !void {
     line_lock.lock();
     defer line_lock.unlock();
     var stdout = std.io.bufferedWriter(std.io.getStdOut().writer());
@@ -45,8 +50,8 @@ fn print(reader: std.net.Stream.Reader, writer: std.net.Stream.Writer) !void {
     var title: ?[]const u8 = null;
     var elapsed: f32 = 0;
     var duration: f32 = 0;
-    try writer.writeAll("currentsong\n");
-    while (try reader.readUntilDelimiterOrEof(&line_buffer, '\n')) |line| {
+    try mpd_writer.writeAll("currentsong\n");
+    while (try mpd_reader.reader().readUntilDelimiterOrEof(&line_buffer, '\n')) |line| {
         if (std.mem.eql(u8, line, "OK")) break;
         var split = std.mem.split(u8, line, key_value_separator);
         const key = split.first();
@@ -59,8 +64,8 @@ fn print(reader: std.net.Stream.Reader, writer: std.net.Stream.Writer) !void {
             title = title_buffer[0..val.len];
         }
     }
-    try writer.writeAll("status\n");
-    while (try reader.readUntilDelimiterOrEof(&line_buffer, '\n')) |line| {
+    try mpd_writer.writeAll("status\n");
+    while (try mpd_reader.reader().readUntilDelimiterOrEof(&line_buffer, '\n')) |line| {
         if (std.mem.eql(u8, line, "OK")) break;
         var split = std.mem.split(u8, line, key_value_separator);
         const key = split.first();
@@ -90,7 +95,7 @@ fn interval() !void {
 
     while (true) {
         std.Thread.Futex.wait(&playing, 0);
-        try print(stream.reader(), stream.writer());
+        try print();
         std.time.sleep(1000 * std.time.ns_per_ms);
     }
 }
@@ -103,13 +108,13 @@ pub fn main() !void {
     const stream = try connect(allocator);
     defer stream.close();
 
-    try print(stream.reader(), stream.writer());
+    try print();
     const interval_thread = try std.Thread.spawn(.{}, interval, .{});
     while (true) {
-        try stream.writer().writeAll("idle player\n");
-        while (try stream.reader().readUntilDelimiterOrEof(&line_buffer, '\n')) |line|
+        try mpd_writer.writeAll("idle player\n");
+        while (try mpd_reader.reader().readUntilDelimiterOrEof(&line_buffer, '\n')) |line|
             if (std.mem.eql(u8, line, "OK")) break;
-        try print(stream.reader(), stream.writer());
+        try print();
     }
     interval_thread.join();
 }
