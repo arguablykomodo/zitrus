@@ -52,3 +52,9 @@ highlighted. Requires `bspc` to be on `$PATH`.
 - `monitor_name`: Name of monitor whose desktops will be displayed. `bspc query
   -M --names` can be useful to figure out the name.
 - `focus_color`: Color used to highlight focused desktop.
+
+### `mpd`
+
+Displays current track artist, title, position and duration.
+
+<pre><b>mpd</b></pre>
