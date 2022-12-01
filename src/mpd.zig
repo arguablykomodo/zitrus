@@ -7,6 +7,7 @@ var title_buffer = [_]u8{0} ** 1024;
 var artist_buffer = [_]u8{0} ** 1024;
 
 var line_lock = std.Thread.Mutex{};
+var playing = std.atomic.Atomic(u32).init(0);
 
 fn connect(alloc: std.mem.Allocator) !std.net.Stream {
     const stream = blk: {
@@ -64,7 +65,12 @@ fn print(reader: std.net.Stream.Reader, writer: std.net.Stream.Writer) !void {
         var split = std.mem.split(u8, line, key_value_separator);
         const key = split.first();
         const val = split.rest();
-        if (std.mem.eql(u8, key, "elapsed")) {
+        if (std.mem.eql(u8, key, "state")) {
+            if (std.mem.eql(u8, val, "play")) {
+                playing.store(1, .Release);
+                std.Thread.Futex.wake(&playing, 1);
+            } else playing.store(0, .Release);
+        } else if (std.mem.eql(u8, key, "elapsed")) {
             elapsed = try std.fmt.parseFloat(f32, val);
         } else if (std.mem.eql(u8, key, "duration")) {
             duration = try std.fmt.parseFloat(f32, val);
@@ -83,6 +89,7 @@ fn interval() !void {
     defer stream.close();
 
     while (true) {
+        std.Thread.Futex.wait(&playing, 0);
         try print(stream.reader(), stream.writer());
         std.time.sleep(1000 * std.time.ns_per_ms);
     }
@@ -96,14 +103,13 @@ pub fn main() !void {
     const stream = try connect(allocator);
     defer stream.close();
 
+    try print(stream.reader(), stream.writer());
     const interval_thread = try std.Thread.spawn(.{}, interval, .{});
-
     while (true) {
         try stream.writer().writeAll("idle player\n");
         while (try stream.reader().readUntilDelimiterOrEof(&line_buffer, '\n')) |line|
             if (std.mem.eql(u8, line, "OK")) break;
         try print(stream.reader(), stream.writer());
     }
-
     interval_thread.join();
 }
