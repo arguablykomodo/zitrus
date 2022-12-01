@@ -52,7 +52,10 @@ fn print() !void {
     var duration: f32 = 0;
     try mpd_writer.writeAll("command_list_begin\ncurrentsong\nstatus\ncommand_list_end\n");
     while (try mpd_reader.reader().readUntilDelimiterOrEof(&line_buffer, '\n')) |line| {
-        if (std.mem.eql(u8, line, "OK")) break;
+        if (std.mem.eql(u8, line, "OK")) break else if (std.mem.startsWith(u8, line, "ACK")) {
+            std.log.err("{s}", .{line});
+            return error.MpdError;
+        }
         var split = std.mem.split(u8, line, key_value_separator);
         const key = split.first();
         const val = split.rest();
@@ -108,8 +111,12 @@ pub fn main() !void {
     const interval_thread = try std.Thread.spawn(.{}, interval, .{});
     while (true) {
         try mpd_writer.writeAll("idle player\n");
-        while (try mpd_reader.reader().readUntilDelimiterOrEof(&line_buffer, '\n')) |line|
-            if (std.mem.eql(u8, line, "OK")) break;
+        while (try mpd_reader.reader().readUntilDelimiterOrEof(&line_buffer, '\n')) |line| {
+            if (std.mem.eql(u8, line, "OK")) break else if (std.mem.startsWith(u8, line, "ACK")) {
+                std.log.err("{s}", .{line});
+                return error.MpdError;
+            }
+        }
         try print();
     }
     interval_thread.join();
