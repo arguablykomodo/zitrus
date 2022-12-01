@@ -2,12 +2,12 @@ const std = @import("std");
 
 const key_value_separator = ": ";
 
-var line_buffer = [_]u8{0} ** 1024;
+threadlocal var line_buffer = [_]u8{0} ** 1024;
 var title_buffer = [_]u8{0} ** 1024;
 var artist_buffer = [_]u8{0} ** 1024;
 
 var line_lock = std.Thread.Mutex{};
-var playing = std.atomic.Atomic(u32).init(0);
+var playing = false;
 
 threadlocal var mpd_reader: std.io.BufferedReader(4096, std.net.Stream.Reader) = undefined;
 threadlocal var mpd_writer: std.net.Stream.Writer = undefined;
@@ -57,10 +57,7 @@ fn print() !void {
         const key = split.first();
         const val = split.rest();
         if (std.mem.eql(u8, key, "state")) {
-            if (std.mem.eql(u8, val, "play")) {
-                playing.store(1, .Release);
-                std.Thread.Futex.wake(&playing, 1);
-            } else playing.store(0, .Release);
+            playing = std.mem.eql(u8, val, "play");
         } else if (std.mem.eql(u8, key, "Artist")) {
             std.mem.copy(u8, &artist_buffer, val);
             artist = artist_buffer[0..val.len];
@@ -86,8 +83,15 @@ fn interval() !void {
     defer stream.close();
 
     while (true) {
-        std.Thread.Futex.wait(&playing, 0);
-        try print();
+        if (playing) try print() else {
+            try mpd_writer.writeAll("ping\n");
+            if (try mpd_reader.reader().readUntilDelimiterOrEof(&line_buffer, '\n')) |line| {
+                if (!std.mem.eql(u8, line, "OK")) {
+                    std.log.err("{s}", .{line});
+                    return error.MpdError;
+                }
+            } else return error.MpdError;
+        }
         std.time.sleep(1000 * std.time.ns_per_ms);
     }
 }
