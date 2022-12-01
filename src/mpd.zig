@@ -6,6 +6,8 @@ var line_buffer = [_]u8{0} ** 1024;
 var title_buffer = [_]u8{0} ** 1024;
 var artist_buffer = [_]u8{0} ** 1024;
 
+var line_lock = std.Thread.Mutex{};
+
 fn connect(alloc: std.mem.Allocator) !std.net.Stream {
     const stream = blk: {
         const port = if (std.os.getenv("MPD_PORT")) |port| try std.fmt.parseInt(u16, port, 10) else 6600;
@@ -34,6 +36,8 @@ fn fmtTime(seconds: f32) std.fmt.Formatter(timeFormatter) {
 }
 
 fn print(reader: std.net.Stream.Reader, writer: std.net.Stream.Writer) !void {
+    line_lock.lock();
+    defer line_lock.unlock();
     var stdout = std.io.bufferedWriter(std.io.getStdOut().writer());
     const stdout_writer = stdout.writer();
     var artist: ?[]const u8 = null;
