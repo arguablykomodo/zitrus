@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const programs = .{ "cpu", "ram", "net", "bspwm", "mpd" };
+const programs = .{ "cpu", "ram", "net", "bspwm", "mpd", "pulseaudio" };
 
 pub fn build(b: *std.build.Builder) void {
     const target = b.standardTargetOptions(.{});
@@ -8,6 +8,10 @@ pub fn build(b: *std.build.Builder) void {
 
     inline for (programs) |name| {
         const exe = b.addExecutable("zitrus-" ++ name, "src/" ++ name ++ ".zig");
+        if (std.mem.eql(u8, name, "pulseaudio")) {
+            exe.linkLibC();
+            exe.linkSystemLibrary("libpulse");
+        }
         exe.setTarget(target);
         exe.setBuildMode(mode);
         exe.install();

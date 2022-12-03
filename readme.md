@@ -58,3 +58,10 @@ highlighted. Requires `bspc` to be on `$PATH`.
 Displays current track artist, title, position and duration.
 
 <pre><b>zitrus-mpd</b></pre>
+
+### `pulseaudio`
+
+Displays volume of default audio sink as a percentage. Requires linking with
+`libc` and `libpulse`.
+
+<pre><b>zitrus-pulseaudio</b></pre>
