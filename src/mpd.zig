@@ -5,6 +5,7 @@ const key_value_separator = ": ";
 threadlocal var line_buffer = [_]u8{0} ** 1024;
 var title_buffer = [_]u8{0} ** 1024;
 var artist_buffer = [_]u8{0} ** 1024;
+var file_buffer = [_]u8{0} ** 1024;
 
 var line_lock = std.Thread.Mutex{};
 var playing = false;
@@ -48,6 +49,7 @@ fn print() !void {
     const stdout_writer = stdout.writer();
     var artist: ?[]const u8 = null;
     var title: ?[]const u8 = null;
+    var file: ?[]const u8 = null;
     var elapsed: f32 = 0;
     var duration: f32 = 0;
     try mpd_writer.writeAll("command_list_begin\ncurrentsong\nstatus\ncommand_list_end\n");
@@ -61,6 +63,9 @@ fn print() !void {
         const val = split.rest();
         if (std.mem.eql(u8, key, "state")) {
             playing = std.mem.eql(u8, val, "play");
+        } else if (std.mem.eql(u8, key, "file")) {
+            std.mem.copy(u8, &file_buffer, val);
+            file = file_buffer[0..val.len];
         } else if (std.mem.eql(u8, key, "Artist")) {
             std.mem.copy(u8, &artist_buffer, val);
             artist = artist_buffer[0..val.len];
@@ -73,7 +78,9 @@ fn print() !void {
             duration = try std.fmt.parseFloat(f32, val);
         }
     }
-    try stdout_writer.print("{?s} - {?s} [{}/{}]\n", .{ artist, title, fmtTime(elapsed), fmtTime(duration) });
+    if (artist) |a| try stdout_writer.print("{s} - ", .{a});
+    try stdout_writer.writeAll(if (title) |t| t else std.fs.path.basename(file.?));
+    try stdout_writer.print(" [{}/{}]\n", .{ fmtTime(elapsed), fmtTime(duration) });
     try stdout.flush();
 }
 

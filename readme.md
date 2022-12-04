@@ -55,7 +55,8 @@ highlighted. Requires `bspc` to be on `$PATH`.
 
 ### `mpd`
 
-Displays current track artist, title, position and duration.
+Displays current track artist, title, duration and elapsed time. Will display
+filename if track has no title.
 
 <pre><b>zitrus-mpd</b></pre>
 
