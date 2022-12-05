@@ -18,7 +18,7 @@ fn getPipe() ![]const u8 {
 
 fn formatDesktop(writer: anytype, name: []const u8, focused: bool, focus_color: []const u8) !void {
     if (focused) try std.fmt.format(writer, "%{{B{s}}}", .{focus_color});
-    try std.fmt.format(writer, " {s} ", .{name});
+    try std.fmt.format(writer, "%{{A1:bspc desktop -f {s}:}} {s} %{{A}}", .{ name, name });
     if (focused) try writer.writeAll("%{B-}");
 }
 
