@@ -13,7 +13,10 @@ var playing = false;
 threadlocal var mpd_reader: std.io.BufferedReader(4096, std.net.Stream.Reader) = undefined;
 threadlocal var mpd_writer: std.net.Stream.Writer = undefined;
 
-fn connect(alloc: std.mem.Allocator) !std.net.Stream {
+fn connect() !std.net.Stream {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
     const stream = blk: {
         const port = if (std.os.getenv("MPD_PORT")) |port| try std.fmt.parseInt(u16, port, 10) else 6600;
         if (std.os.getenv("MPD_HOST")) |host| {
@@ -85,11 +88,7 @@ fn print() !void {
 }
 
 fn interval() !void {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
-    const allocator = arena.allocator();
-
-    const stream = try connect(allocator);
+    const stream = try connect();
     defer stream.close();
 
     while (true) {
@@ -107,11 +106,7 @@ fn interval() !void {
 }
 
 pub fn main() !void {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
-    const allocator = arena.allocator();
-
-    const stream = try connect(allocator);
+    const stream = try connect();
     defer stream.close();
 
     try print();
