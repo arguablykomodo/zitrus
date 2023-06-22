@@ -23,10 +23,10 @@ fn sinkInfoCallback(
         c.pa_context_set_subscribe_callback(context, contextSubscribeCallback, null);
         c.pa_operation_unref(c.pa_context_subscribe(context, c.PA_SUBSCRIPTION_MASK_SINK, null, null));
     }
-    const volume = @intToFloat(f32, c.pa_cvolume_avg(&info.?.volume)) * 100 / @intToFloat(f32, c.PA_VOLUME_NORM);
+    const volume = @floatFromInt(f32, c.pa_cvolume_avg(&info.?.volume)) * 100 / @floatFromInt(f32, c.PA_VOLUME_NORM);
     var stdout = std.io.bufferedWriter(std.io.getStdOut().writer());
     const stdout_writer = stdout.writer();
-    stdout_writer.print("{}\n", .{@floatToInt(u8, @round(volume))}) catch std.os.exit(1);
+    stdout_writer.print("{}\n", .{@intFromFloat(u8, @round(volume))}) catch std.os.exit(1);
     stdout.flush() catch std.os.exit(1);
 }
 

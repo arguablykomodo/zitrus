@@ -33,7 +33,7 @@ pub fn main() !void {
         try reader.skipUntilDelimiterOrEof('\n'); // MemFree
         const available = try parseLine(&reader); // MemAvailable
 
-        const percentage = 1 - @intToFloat(f32, available) / @intToFloat(f32, total);
+        const percentage = 1 - @floatFromInt(f32, available) / @floatFromInt(f32, total);
         try writePercentage(percentage, stdout);
         try stdout.writeByte(' ');
         try writeBar(percentage, colors, stdout);
