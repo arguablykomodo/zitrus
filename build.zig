@@ -17,7 +17,7 @@ pub fn build(b: *std.Build) void {
             exe.linkLibC();
             exe.linkSystemLibrary("libpulse");
         }
-        const install = b.addInstallArtifact(exe);
+        const install = b.addInstallArtifact(exe, .{});
         b.getInstallStep().dependOn(&install.step);
         const build_step = b.step(name, "Build the `" ++ name ++ "` program");
         build_step.dependOn(&install.step);

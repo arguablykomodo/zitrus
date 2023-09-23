@@ -29,11 +29,11 @@ pub fn main() !void {
         var buffered = std.io.bufferedReader(file.reader());
         const reader = buffered.reader();
 
-        const total = try parseLine(&reader); // MemTotal
+        const total: f32 = @floatFromInt(try parseLine(&reader)); // MemTotal
         try reader.skipUntilDelimiterOrEof('\n'); // MemFree
-        const available = try parseLine(&reader); // MemAvailable
+        const available: f32 = @floatFromInt(try parseLine(&reader)); // MemAvailable
 
-        const percentage = 1 - @floatFromInt(f32, available) / @floatFromInt(f32, total);
+        const percentage = 1 - available / total;
         try writePercentage(percentage, stdout);
         try stdout.writeByte(' ');
         try writeBar(percentage, colors, stdout);

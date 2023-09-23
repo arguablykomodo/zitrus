@@ -38,7 +38,9 @@ fn connect() !std.net.Stream {
 }
 
 fn timeFormatter(seconds: f32, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
-    try writer.print("{:0>1}:{:0>2}", .{ @intFromFloat(u32, seconds / 60), @intFromFloat(u6, @mod(seconds, 60)) });
+    const minutes: u32 = @intFromFloat(seconds / 60);
+    const seconds_wrapped: u32 = @intFromFloat(@mod(seconds, 60));
+    try writer.print("{:0>1}:{:0>2}", .{ minutes, seconds_wrapped });
 }
 
 fn fmtTime(seconds: f32) std.fmt.Formatter(timeFormatter) {

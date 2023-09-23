@@ -17,8 +17,8 @@ pub fn parseColors(args: *std.process.ArgIterator) ![]u32 {
 pub fn getColor(value: f32, colors: []u32) ?u32 {
     if (colors.len == 0) return null else if (colors.len == 1) return colors[0];
 
-    const mapped = value * @floatFromInt(f32, colors.len - 1);
-    const i = @intFromFloat(ColorI, mapped);
+    const mapped = value * @as(f32, @floatFromInt(colors.len - 1));
+    const i: ColorI = @intFromFloat(mapped);
     const c0 = colors[i];
     const c1 = colors[@min(i + 1, colors.len - 1)];
     const t = mapped - @floor(mapped);
@@ -30,5 +30,5 @@ pub fn getColor(value: f32, colors: []u32) ?u32 {
 }
 
 fn lerp(a: u32, b: u32, t: f32) u32 {
-    return @intFromFloat(u32, (1 - t) * @floatFromInt(f32, a) + t * @floatFromInt(f32, b));
+    return @intFromFloat((1 - t) * @as(f32, @floatFromInt(a)) + t * @as(f32, @floatFromInt(b)));
 }

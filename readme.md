@@ -5,7 +5,7 @@ A set of opinionated system information fetchers written in Zig, for use in
 
 ## Building
 
-Requires Zig 0.10.0.
+Requires Zig 0.11.0.
 
 `zig build` will build all the fetchers, <code>zig build <i>name</i></code>
 will build just the specified fetcher.

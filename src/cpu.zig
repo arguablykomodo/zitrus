@@ -31,7 +31,9 @@ fn parseLine(reader: anytype, stat_i: std.math.IntFittingRange(0, MAX_CORES)) !f
         }
     }
 
-    const percentage = 1 - @floatFromInt(f32, stat.idle - stats[stat_i].idle) / @floatFromInt(f32, stat.total - stats[stat_i].total);
+    const new_idle: f32 = @floatFromInt(stat.idle - stats[stat_i].idle);
+    const new_total: f32 = @floatFromInt(stat.total - stats[stat_i].total);
+    const percentage = 1 - new_idle / new_total;
     stats[stat_i] = stat;
     return percentage;
 }
