@@ -20,14 +20,14 @@ fn parseLine(reader: anytype, stat_i: std.math.IntFittingRange(0, MAX_CORES)) !f
     var tokens = std.mem.tokenize(u8, line, " ");
     _ = tokens.next(); // skip cpu name
 
-    var stat = CoreStat{ .idle = undefined, .total = 0 };
+    var stat = CoreStat{ .idle = 0, .total = 0 };
 
     var i: std.math.IntFittingRange(0, LINE_COLUMNS - 1) = 0;
     while (tokens.next()) |token| : (i += 1) {
         const value = try std.fmt.parseUnsigned(u32, token, 10);
         stat.total += value;
-        if (i == 3) {
-            stat.idle = value;
+        if (i == 3 or i == 4) {
+            stat.idle += value;
         }
     }
 
