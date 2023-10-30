@@ -57,6 +57,7 @@ fn print() !void {
     var file: ?[]const u8 = null;
     var elapsed: f32 = 0;
     var duration: f32 = 0;
+    var state: []const u8 = undefined;
     try mpd_writer.writeAll("command_list_begin\ncurrentsong\nstatus\ncommand_list_end\n");
     while (try mpd_reader.reader().readUntilDelimiterOrEof(&line_buffer, '\n')) |line| {
         if (std.mem.eql(u8, line, "OK")) break else if (std.mem.startsWith(u8, line, "ACK")) {
@@ -68,6 +69,7 @@ fn print() !void {
         const val = split.rest();
         if (std.mem.eql(u8, key, "state")) {
             playing = std.mem.eql(u8, val, "play");
+            state = val;
         } else if (std.mem.eql(u8, key, "file")) {
             std.mem.copy(u8, &file_buffer, val);
             file = file_buffer[0..val.len];
@@ -83,10 +85,12 @@ fn print() !void {
             duration = try std.fmt.parseFloat(f32, val);
         }
     }
-    if (artist) |a| try stdout_writer.print("{s} - ", .{a});
-    try stdout_writer.writeAll(if (title) |t| t else std.fs.path.basename(file.?));
-    try stdout_writer.print(" [{}/{}]\n", .{ fmtTime(elapsed), fmtTime(duration) });
-    try stdout.flush();
+    if (!std.mem.eql(u8, state, "stop")) {
+        if (artist) |a| try stdout_writer.print("{s} - ", .{a});
+        try stdout_writer.writeAll(title orelse std.fs.path.basename(file orelse ""));
+        try stdout_writer.print(" [{}/{}]\n", .{ fmtTime(elapsed), fmtTime(duration) });
+        try stdout.flush();
+    }
 }
 
 fn interval() !void {
