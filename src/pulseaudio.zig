@@ -19,7 +19,7 @@ fn sinkInfoCallback(
     eol: c_int,
     _: ?*anyopaque,
 ) callconv(.C) void {
-    if (eol > 0) return else if (eol < 0) std.os.exit(1);
+    if (eol > 0) return else if (eol < 0) std.process.exit(1);
     if (default_sink_id == null) {
         default_sink_id = info.?.index;
         c.pa_context_set_subscribe_callback(context, contextSubscribeCallback, null);
@@ -29,8 +29,8 @@ fn sinkInfoCallback(
     const normalized = volume * 100 / PA_VOLUME_NORM;
     var stdout = std.io.bufferedWriter(std.io.getStdOut().writer());
     const stdout_writer = stdout.writer();
-    stdout_writer.print("{}\n", .{@as(u8, @intFromFloat(@round(normalized)))}) catch std.os.exit(1);
-    stdout.flush() catch std.os.exit(1);
+    stdout_writer.print("{}\n", .{@as(u8, @intFromFloat(@round(normalized)))}) catch std.process.exit(1);
+    stdout.flush() catch std.process.exit(1);
 }
 
 fn contextSubscribeCallback(
@@ -73,7 +73,7 @@ fn contextStateCallback(context: ?*c.pa_context, _: ?*anyopaque) callconv(.C) vo
 }
 
 pub fn main() !void {
-    var mainloop = c.pa_mainloop_new() orelse return error.PulseMainloopNew;
+    const mainloop = c.pa_mainloop_new() orelse return error.PulseMainloopNew;
     defer c.pa_mainloop_free(mainloop);
 
     const api = c.pa_mainloop_get_api(mainloop) orelse return error.PulseMainloopGetApi;

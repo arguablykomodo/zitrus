@@ -31,7 +31,7 @@ pub fn main() !void {
     if (args.next()) |arg| {
         column = if (std.mem.eql(u8, arg, "down")) 0 else if (std.mem.eql(u8, arg, "up")) 8 else {
             std.log.err("argument must be \"down\" or \"up\", instead found \"{s}\"", .{arg});
-            std.os.exit(1);
+            std.process.exit(1);
         };
     } else {
         try std.fmt.format(stdout, "usage: {s} down|up [interval]\n", .{launch_arg});

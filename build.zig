@@ -9,7 +9,7 @@ pub fn build(b: *std.Build) void {
     inline for (programs) |name| {
         const exe = b.addExecutable(.{
             .name = "zitrus-" ++ name,
-            .root_source_file = .{ .path = "src/" ++ name ++ ".zig" },
+            .root_source_file = b.path("src/" ++ name ++ ".zig"),
             .target = target,
             .optimize = optimize,
         });

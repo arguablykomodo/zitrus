@@ -18,11 +18,11 @@ fn connect() !std.net.Stream {
     defer arena.deinit();
     const alloc = arena.allocator();
     const stream = blk: {
-        const port = if (std.os.getenv("MPD_PORT")) |port| try std.fmt.parseInt(u16, port, 10) else 6600;
-        if (std.os.getenv("MPD_HOST")) |host| {
+        const port = if (std.posix.getenv("MPD_PORT")) |port| try std.fmt.parseInt(u16, port, 10) else 6600;
+        if (std.posix.getenv("MPD_HOST")) |host| {
             if (std.net.tcpConnectToHost(alloc, host, port)) |stream| break :blk stream else |_| {}
         }
-        if (std.os.getenv("XDG_RUNTIME_DIR")) |runtime_dir| {
+        if (std.posix.getenv("XDG_RUNTIME_DIR")) |runtime_dir| {
             const path = try std.mem.concat(alloc, u8, &.{ runtime_dir, "/mpd/socket" });
             defer alloc.free(path);
             if (std.net.connectUnixSocket(path)) |stream| break :blk stream else |_| {}
@@ -71,13 +71,13 @@ fn print() !void {
             playing = std.mem.eql(u8, val, "play");
             state = val;
         } else if (std.mem.eql(u8, key, "file")) {
-            std.mem.copy(u8, &file_buffer, val);
+            @memcpy(file_buffer[0..val.len], val);
             file = file_buffer[0..val.len];
         } else if (std.mem.eql(u8, key, "Artist")) {
-            std.mem.copy(u8, &artist_buffer, val);
+            @memcpy(artist_buffer[0..val.len], val);
             artist = artist_buffer[0..val.len];
         } else if (std.mem.eql(u8, key, "Title")) {
-            std.mem.copy(u8, &title_buffer, val);
+            @memcpy(title_buffer[0..val.len], val);
             title = title_buffer[0..val.len];
         } else if (std.mem.eql(u8, key, "elapsed")) {
             elapsed = try std.fmt.parseFloat(f32, val);
