@@ -2,9 +2,9 @@ const std = @import("std");
 const getColor = @import("color.zig").getColor;
 
 /// Writes a vertical bar based on a value from 0 to 1 with Unicode characters U+2581 to U+2588.
-pub fn writeBar(value: f32, colors: []u32, writer: anytype) !void {
+pub fn writeBar(writer: *std.Io.Writer, value: f32, colors: []u32) !void {
     const color = getColor(@max(value, 0), colors);
-    if (color) |c| try std.fmt.format(writer, "%{{F#{x:0>6}}}", .{c});
+    if (color) |c| try writer.print("%{{F#{x:0>6}}}", .{c});
     try writer.writeAll("\xE2\x96");
     const offset: u8 = @intFromFloat(@round(@min(@max(value * 8, 0), 8)));
     try writer.writeByte(0x81 + offset);

@@ -6,11 +6,12 @@ threadlocal var line_buffer = [_]u8{0} ** 1024;
 var title_buffer = [_]u8{0} ** 1024;
 var artist_buffer = [_]u8{0} ** 1024;
 var file_buffer = [_]u8{0} ** 1024;
+var stdout_buffer: [1024]u8 = undefined;
 
 var line_lock = std.Thread.Mutex{};
 var playing = false;
 
-threadlocal var mpd_reader: std.io.BufferedReader(4096, std.net.Stream.Reader) = undefined;
+threadlocal var mpd_reader: std.net.Stream.Reader = undefined;
 threadlocal var mpd_writer: std.net.Stream.Writer = undefined;
 
 fn connect() !std.net.Stream {
@@ -30,41 +31,38 @@ fn connect() !std.net.Stream {
         if (std.net.connectUnixSocket("/run/mpd/socket")) |stream| break :blk stream else |_| {}
         break :blk try std.net.tcpConnectToHost(alloc, "localhost", port);
     };
-    mpd_reader = std.io.bufferedReader(stream.reader());
-    mpd_writer = stream.writer();
-    const reply = try mpd_reader.reader().readUntilDelimiter(&line_buffer, '\n');
+    mpd_reader = stream.reader(&line_buffer);
+    mpd_writer = stream.writer(&.{});
+    const reply = try mpd_reader.interface().takeDelimiterExclusive('\n');
     if (!std.mem.startsWith(u8, reply, "OK MPD ")) return error.MissingMpdReply;
     return stream;
 }
 
-fn timeFormatter(seconds: f32, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
+fn printTime(writer: *std.io.Writer, seconds: f32) !void {
     const minutes: u32 = @intFromFloat(seconds / 60);
     const seconds_wrapped: u32 = @intFromFloat(@mod(seconds, 60));
     try writer.print("{:0>1}:{:0>2}", .{ minutes, seconds_wrapped });
 }
 
-fn fmtTime(seconds: f32) std.fmt.Formatter(timeFormatter) {
-    return .{ .data = seconds };
-}
-
 fn print() !void {
     line_lock.lock();
     defer line_lock.unlock();
-    var stdout = std.io.bufferedWriter(std.io.getStdOut().writer());
-    const stdout_writer = stdout.writer();
+
+    var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
+    const stdout = &stdout_writer.interface;
     var artist: ?[]const u8 = null;
     var title: ?[]const u8 = null;
     var file: ?[]const u8 = null;
     var elapsed: f32 = 0;
     var duration: f32 = 0;
     var state: []const u8 = undefined;
-    try mpd_writer.writeAll("command_list_begin\ncurrentsong\nstatus\ncommand_list_end\n");
-    while (try mpd_reader.reader().readUntilDelimiterOrEof(&line_buffer, '\n')) |line| {
+    try mpd_writer.interface.writeAll("command_list_begin\ncurrentsong\nstatus\ncommand_list_end\n");
+    while (mpd_reader.interface().takeDelimiterExclusive('\n')) |line| {
         if (std.mem.eql(u8, line, "OK")) break else if (std.mem.startsWith(u8, line, "ACK")) {
             std.log.err("{s}", .{line});
             return error.MpdError;
         }
-        var split = std.mem.split(u8, line, key_value_separator);
+        var split = std.mem.splitSequence(u8, line, key_value_separator);
         const key = split.first();
         const val = split.rest();
         if (std.mem.eql(u8, key, "state")) {
@@ -84,11 +82,15 @@ fn print() !void {
         } else if (std.mem.eql(u8, key, "duration")) {
             duration = try std.fmt.parseFloat(f32, val);
         }
-    }
+    } else |err| return err;
     if (!std.mem.eql(u8, state, "stop")) {
-        if (artist) |a| try stdout_writer.print("{s} - ", .{a});
-        try stdout_writer.writeAll(title orelse std.fs.path.basename(file orelse ""));
-        try stdout_writer.print(" [{}/{}]\n", .{ fmtTime(elapsed), fmtTime(duration) });
+        if (artist) |a| try stdout.print("{s} - ", .{a});
+        try stdout.writeAll(title orelse std.fs.path.basename(file orelse ""));
+        try stdout.writeAll(" [");
+        try printTime(stdout, elapsed);
+        try stdout.writeByte('/');
+        try printTime(stdout, duration);
+        try stdout.writeAll("]\n");
         try stdout.flush();
     }
 }
@@ -99,15 +101,15 @@ fn interval() !void {
 
     while (true) {
         if (playing) try print() else {
-            try mpd_writer.writeAll("ping\n");
-            if (try mpd_reader.reader().readUntilDelimiterOrEof(&line_buffer, '\n')) |line| {
+            try mpd_writer.interface.writeAll("ping\n");
+            if (mpd_reader.interface().takeDelimiterExclusive('\n')) |line| {
                 if (!std.mem.eql(u8, line, "OK")) {
                     std.log.err("{s}", .{line});
                     return error.MpdError;
                 }
-            } else return error.MpdError;
+            } else |err| return err;
         }
-        std.time.sleep(1000 * std.time.ns_per_ms);
+        std.Thread.sleep(1000 * std.time.ns_per_ms);
     }
 }
 
@@ -118,13 +120,13 @@ pub fn main() !void {
     try print();
     const interval_thread = try std.Thread.spawn(.{}, interval, .{});
     while (true) {
-        try mpd_writer.writeAll("idle player\n");
-        while (try mpd_reader.reader().readUntilDelimiterOrEof(&line_buffer, '\n')) |line| {
+        try mpd_writer.interface.writeAll("idle player\n");
+        while (mpd_reader.interface().takeDelimiterExclusive('\n')) |line| {
             if (std.mem.eql(u8, line, "OK")) break else if (std.mem.startsWith(u8, line, "ACK")) {
                 std.log.err("{s}", .{line});
                 return error.MpdError;
             }
-        }
+        } else |err| return err;
         try print();
     }
     interval_thread.join();

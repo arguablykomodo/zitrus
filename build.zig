@@ -9,9 +9,11 @@ pub fn build(b: *std.Build) void {
     inline for (programs) |name| {
         const exe = b.addExecutable(.{
             .name = "zitrus-" ++ name,
-            .root_source_file = b.path("src/" ++ name ++ ".zig"),
-            .target = target,
-            .optimize = optimize,
+            .root_module = b.createModule(.{
+                .root_source_file = b.path("src/" ++ name ++ ".zig"),
+                .target = target,
+                .optimize = optimize,
+            }),
         });
         if (std.mem.eql(u8, name, "pulseaudio")) {
             exe.linkLibC();

@@ -11,13 +11,14 @@ const CoreStat = struct {
     total: u32,
 };
 
+var STDOUT_BUFFER: [1024]u8 = undefined;
 var stats = [_]CoreStat{.{ .total = 0, .idle = 0 }} ** MAX_CORES;
 var line_buf: [4 + (1 + 10) * LINE_COLUMNS]u8 = undefined; // name + (space + u32) * columns
 
-fn parseLine(reader: anytype, stat_i: std.math.IntFittingRange(0, MAX_CORES)) !f32 {
-    const line = try reader.readUntilDelimiter(&line_buf, '\n');
+fn parseLine(reader: *std.Io.Reader, stat_i: std.math.IntFittingRange(0, MAX_CORES)) !f32 {
+    const line = try reader.takeDelimiterExclusive('\n');
 
-    var tokens = std.mem.tokenize(u8, line, " ");
+    var tokens = std.mem.tokenizeScalar(u8, line, ' ');
     _ = tokens.next(); // skip cpu name
 
     var stat = CoreStat{ .idle = 0, .total = 0 };
@@ -39,30 +40,29 @@ fn parseLine(reader: anytype, stat_i: std.math.IntFittingRange(0, MAX_CORES)) !f
 }
 
 pub fn main() !void {
-    var writer = std.io.bufferedWriter(std.io.getStdOut().writer());
-    const stdout = writer.writer();
+    var stdout_writer = std.fs.File.stdout().writer(&STDOUT_BUFFER);
+    const stdout = &stdout_writer.interface;
 
     var args = std.process.args();
     _ = args.skip();
     const interval = if (args.next()) |arg| try std.fmt.parseUnsigned(u64, arg, 10) else 1000;
     const colors = try parseColors(&args);
 
-    while (true) : (std.time.sleep(interval * std.time.ns_per_ms)) {
+    while (true) : (std.Thread.sleep(interval * std.time.ns_per_ms)) {
         const file = try std.fs.openFileAbsolute("/proc/stat", .{});
         defer file.close();
-        var buffered = std.io.bufferedReader(file.reader());
-        const reader = buffered.reader();
+        var reader = file.reader(&line_buf);
 
-        const total = try parseLine(&reader, 0);
-        try writePercentage(total, stdout);
+        const total = try parseLine(&reader.interface, 0);
+        try writePercentage(stdout, total);
         try stdout.writeByte(' ');
 
         var i: std.math.IntFittingRange(0, MAX_CORES) = 1;
-        while ((try reader.readByte()) != 'i') : (i += 1) {
-            const percentage = try parseLine(&reader, i);
-            try writeBar(percentage, colors, stdout);
+        while ((try reader.interface.takeByte()) != 'i') : (i += 1) {
+            const percentage = try parseLine(&reader.interface, i);
+            try writeBar(stdout, percentage, colors);
         }
         try stdout.writeByte('\n');
-        try writer.flush();
+        try stdout.flush();
     }
 }

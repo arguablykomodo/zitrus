@@ -2,6 +2,7 @@ const std = @import("std");
 
 var REPORT_BUFFER: [1024]u8 = undefined;
 var PIPE_BUFFER: [256]u8 = undefined;
+var STDOUT_BUFFER: [1024]u8 = undefined;
 
 fn getPipe() ![]const u8 {
     var process = std.process.Child.init(&.{ "bspc", "subscribe", "-f", "report" }, std.heap.page_allocator);
@@ -17,14 +18,14 @@ fn getPipe() ![]const u8 {
 }
 
 fn formatDesktop(writer: anytype, name: []const u8, focused: bool, focus_color: []const u8) !void {
-    if (focused) try std.fmt.format(writer, "%{{B{s}}}", .{focus_color});
-    try std.fmt.format(writer, "%{{A1:bspc desktop -f {s}:}} {s} %{{A}}", .{ name, name });
+    if (focused) try writer.print("%{{B{s}}}", .{focus_color});
+    try writer.print("%{{A1:bspc desktop -f {s}:}} {s} %{{A}}", .{ name, name });
     if (focused) try writer.writeAll("%{B-}");
 }
 
 pub fn main() !void {
-    var writer = std.io.bufferedWriter(std.io.getStdOut().writer());
-    const stdout = writer.writer();
+    var stdout_writer = std.fs.File.stdout().writer(&STDOUT_BUFFER);
+    const stdout = &stdout_writer.interface;
 
     var args = std.process.args();
     _ = args.skip();
@@ -33,14 +34,13 @@ pub fn main() !void {
 
     const pipe = try std.fs.openFileAbsolute(try getPipe(), .{});
     defer pipe.close();
-    var buffered = std.io.bufferedReader(pipe.reader());
-    const reader = buffered.reader();
+    var reader = pipe.reader(&REPORT_BUFFER);
 
     while (true) {
-        const input = try reader.readUntilDelimiter(&REPORT_BUFFER, '\n');
+        const input = try reader.interface.takeDelimiterExclusive('\n');
 
         const i = std.mem.indexOf(u8, input, monitor_name) orelse return error.MissingMonitor;
-        var tokens = std.mem.tokenize(u8, input[(i + monitor_name.len)..], ":");
+        var tokens = std.mem.tokenizeScalar(u8, input[(i + monitor_name.len)..], ':');
         while (tokens.next()) |token| {
             if (token[0] == 'L') break;
             const name = token[1..];
@@ -52,6 +52,6 @@ pub fn main() !void {
         }
 
         _ = try stdout.writeByte('\n');
-        try writer.flush();
+        try stdout.flush();
     }
 }
