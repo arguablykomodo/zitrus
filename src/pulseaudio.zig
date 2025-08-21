@@ -6,6 +6,7 @@ const c = @cImport({
 const PA_VOLUME_NORM: f32 = @floatFromInt(c.PA_VOLUME_NORM);
 
 var default_sink_id: ?u32 = null;
+var stdout_buffer: [1024]u8 = undefined;
 
 fn check(status: c_int, comptime err: anyerror) !void {
     if (status < 0) {
@@ -18,7 +19,7 @@ fn sinkInfoCallback(
     info: ?*const c.pa_sink_info,
     eol: c_int,
     _: ?*anyopaque,
-) callconv(.C) void {
+) callconv(.c) void {
     if (eol > 0) return else if (eol < 0) std.process.exit(1);
     if (default_sink_id == null) {
         default_sink_id = info.?.index;
@@ -27,9 +28,9 @@ fn sinkInfoCallback(
     }
     const volume: f32 = @floatFromInt(c.pa_cvolume_avg(&info.?.volume));
     const normalized = volume * 100 / PA_VOLUME_NORM;
-    var stdout = std.io.bufferedWriter(std.io.getStdOut().writer());
-    const stdout_writer = stdout.writer();
-    stdout_writer.print("{}\n", .{@as(u8, @intFromFloat(@round(normalized)))}) catch std.process.exit(1);
+    var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
+    const stdout = &stdout_writer.interface;
+    stdout.print("{}\n", .{@as(u8, @intFromFloat(@round(normalized)))}) catch std.process.exit(1);
     stdout.flush() catch std.process.exit(1);
 }
 
@@ -38,7 +39,7 @@ fn contextSubscribeCallback(
     event: c.pa_subscription_event_type_t,
     idx: u32,
     _: ?*anyopaque,
-) callconv(.C) void {
+) callconv(.c) void {
     const event_type = event & c.PA_SUBSCRIPTION_EVENT_TYPE_MASK;
     if (event_type == c.PA_SUBSCRIPTION_EVENT_CHANGE and idx == default_sink_id.?) {
         c.pa_operation_unref(c.pa_context_get_sink_info_by_index(context, default_sink_id.?, sinkInfoCallback, null));
@@ -49,11 +50,11 @@ fn serverInfoCallback(
     context: ?*c.pa_context,
     info: ?*const c.pa_server_info,
     _: ?*anyopaque,
-) callconv(.C) void {
+) callconv(.c) void {
     c.pa_operation_unref(c.pa_context_get_sink_info_by_name(context, info.?.default_sink_name, sinkInfoCallback, null));
 }
 
-fn contextStateCallback(context: ?*c.pa_context, _: ?*anyopaque) callconv(.C) void {
+fn contextStateCallback(context: ?*c.pa_context, _: ?*anyopaque) callconv(.c) void {
     const state = c.pa_context_get_state(context);
     switch (state) {
         c.PA_CONTEXT_UNCONNECTED => {},

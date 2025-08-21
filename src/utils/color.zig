@@ -5,7 +5,7 @@ const ColorI = std.math.IntFittingRange(0, MAX_COLORS);
 
 var color_buffer: [MAX_COLORS]u32 = undefined;
 
-pub fn parseColors(args: *std.process.ArgIterator) ![]u32 {
+pub fn parseColors(args: *std.process.ArgIterator) ![]const u32 {
     var i: ColorI = 0;
     while (args.next()) |arg| : (i += 1) {
         if (i == MAX_COLORS) break;
@@ -14,7 +14,7 @@ pub fn parseColors(args: *std.process.ArgIterator) ![]u32 {
     return color_buffer[0..i];
 }
 
-pub fn getColor(value: f32, colors: []u32) ?u32 {
+pub fn getColor(value: f32, colors: []const u32) ?u32 {
     if (colors.len == 0) return null else if (colors.len == 1) return colors[0];
 
     const mapped = value * @as(f32, @floatFromInt(colors.len - 1));
