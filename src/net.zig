@@ -22,11 +22,11 @@ fn parseLine(reader: *std.Io.Reader) !?u64 {
     unreachable;
 }
 
-pub fn main() !void {
-    var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
+pub fn main(init: std.process.Init) !void {
+    var stdout_writer = std.Io.File.stdout().writer(init.io, &stdout_buffer);
     const stdout = &stdout_writer.interface;
 
-    var args = std.process.args();
+    var args = init.minimal.args.iterate();
     const launch_arg = args.next().?;
 
     if (args.next()) |arg| {
@@ -41,10 +41,10 @@ pub fn main() !void {
 
     const interval = if (args.next()) |arg| try std.fmt.parseUnsigned(u64, arg, 10) else 1000;
 
-    while (true) : (std.Thread.sleep(interval * std.time.ns_per_ms)) {
-        const file = try std.fs.openFileAbsolute("/proc/net/dev", .{});
-        defer file.close();
-        var reader = file.reader(&line_buf);
+    while (true) : (try std.Io.sleep(init.io, .fromMilliseconds(@intCast(interval)), .awake)) {
+        const file = try std.Io.Dir.openFileAbsolute(init.io, "/proc/net/dev", .{});
+        defer file.close(init.io);
+        var reader = file.reader(init.io, &line_buf);
 
         _ = try reader.interface.discardDelimiterInclusive('\n'); // header 1
         _ = try reader.interface.discardDelimiterInclusive('\n'); // header 2

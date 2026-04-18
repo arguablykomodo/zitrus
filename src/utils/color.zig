@@ -5,7 +5,7 @@ const ColorI = std.math.IntFittingRange(0, MAX_COLORS);
 
 var color_buffer: [MAX_COLORS]u32 = undefined;
 
-pub fn parseColors(args: *std.process.ArgIterator) ![]const u32 {
+pub fn parseColors(args: *std.process.Args.Iterator) ![]const u32 {
     var i: ColorI = 0;
     while (args.next()) |arg| : (i += 1) {
         if (i == MAX_COLORS) break;

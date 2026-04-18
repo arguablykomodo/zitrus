@@ -4,37 +4,27 @@ var REPORT_BUFFER: [1024]u8 = undefined;
 var PIPE_BUFFER: [256]u8 = undefined;
 var STDOUT_BUFFER: [1024]u8 = undefined;
 
-fn getPipe() ![]const u8 {
-    var process = std.process.Child.init(&.{ "bspc", "subscribe", "-f", "report" }, std.heap.page_allocator);
-    process.stdin_behavior = .Ignore;
-    process.stdout_behavior = .Pipe;
-    try process.spawn();
-    const bytes_read = try process.stdout.?.readAll(&PIPE_BUFFER);
-    switch (try process.wait()) {
-        .Exited => |code| if (code != 0) return error.UnexpectedTerm,
-        else => return error.UnexpectedTerm,
-    }
-    return PIPE_BUFFER[0 .. bytes_read - 1]; // Trim newline
-}
-
-fn formatDesktop(writer: *std.io.Writer, name: []const u8, focused: bool, focus_color: []const u8) !void {
+fn formatDesktop(writer: *std.Io.Writer, name: []const u8, focused: bool, focus_color: []const u8) !void {
     if (focused) try writer.print("%{{B{s}}}", .{focus_color});
     try writer.print("%{{A1:bspc desktop -f {s}:}} {s} %{{A}}", .{ name, name });
     if (focused) try writer.writeAll("%{B-}");
 }
 
-pub fn main() !void {
-    var stdout_writer = std.fs.File.stdout().writer(&STDOUT_BUFFER);
+pub fn main(init: std.process.Init) !void {
+    var stdout_writer = std.Io.File.stdout().writer(init.io, &STDOUT_BUFFER);
     const stdout = &stdout_writer.interface;
 
-    var args = std.process.args();
+    var args = init.minimal.args.iterate();
     _ = args.skip();
     const monitor_name = args.next() orelse return error.MissingMonitorArgument;
     const focus_color = args.next() orelse "-";
 
-    const pipe = try std.fs.openFileAbsolute(try getPipe(), .{});
-    defer pipe.close();
-    var reader = pipe.reader(&REPORT_BUFFER);
+    var process = try std.process.spawn(init.io, .{
+        .argv = &.{ "bspc", "subscribe", "report" },
+        .stdout = .pipe,
+    });
+    defer process.kill(init.io);
+    var reader = process.stdout.?.reader(init.io, &REPORT_BUFFER);
 
     while (true) {
         const input = try reader.interface.takeSentinel('\n');

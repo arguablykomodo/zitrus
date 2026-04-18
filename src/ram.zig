@@ -15,19 +15,19 @@ fn parseLine(reader: *std.Io.Reader) !u32 {
     return try std.fmt.parseUnsigned(u32, tokens.next() orelse unreachable, 10);
 }
 
-pub fn main() !void {
-    var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
+pub fn main(init: std.process.Init) !void {
+    var stdout_writer = std.Io.File.stdout().writer(init.io, &stdout_buffer);
     const stdout = &stdout_writer.interface;
 
-    var args = std.process.args();
+    var args = init.minimal.args.iterate();
     _ = args.skip();
     const interval = if (args.next()) |arg| try std.fmt.parseUnsigned(u64, arg, 10) else 1000;
     const colors = try parseColors(&args);
 
-    while (true) : (std.Thread.sleep(interval * std.time.ns_per_ms)) {
-        const file = try std.fs.openFileAbsolute("/proc/meminfo", .{});
-        defer file.close();
-        var reader = file.reader(&line_buf);
+    while (true) : (try init.io.sleep(.fromMilliseconds(@intCast(interval)), .awake)) {
+        const file = try std.Io.Dir.openFileAbsolute(init.io, "/proc/meminfo", .{});
+        defer file.close(init.io);
+        var reader = file.reader(init.io, &line_buf);
 
         const total: f32 = @floatFromInt(try parseLine(&reader.interface)); // MemTotal
         _ = try reader.interface.discardDelimiterInclusive('\n'); // MemFree

@@ -1,12 +1,11 @@
 const std = @import("std");
-const c = @cImport({
-    @cInclude("pulse/pulseaudio.h");
-});
+const c = @import("pulseaudioc");
 
 const PA_VOLUME_NORM: f32 = @floatFromInt(c.PA_VOLUME_NORM);
 
 var default_sink_id: ?u32 = null;
 var stdout_buffer: [1024]u8 = undefined;
+var stdout_writer: std.Io.File.Writer = undefined;
 
 fn check(status: c_int, comptime err: anyerror) !void {
     if (status < 0) {
@@ -28,7 +27,6 @@ fn sinkInfoCallback(
     }
     const volume: f32 = @floatFromInt(c.pa_cvolume_avg(&info.?.volume));
     const normalized = volume * 100 / PA_VOLUME_NORM;
-    var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
     const stdout = &stdout_writer.interface;
     stdout.print("{}\n", .{@as(u8, @intFromFloat(@round(normalized)))}) catch std.process.exit(1);
     stdout.flush() catch std.process.exit(1);
@@ -73,7 +71,9 @@ fn contextStateCallback(context: ?*c.pa_context, _: ?*anyopaque) callconv(.c) vo
     }
 }
 
-pub fn main() !void {
+pub fn main(init: std.process.Init) !void {
+    stdout_writer = std.Io.File.stdout().writer(init.io, &stdout_buffer);
+
     const mainloop = c.pa_mainloop_new() orelse return error.PulseMainloopNew;
     defer c.pa_mainloop_free(mainloop);
 

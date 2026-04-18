@@ -2,53 +2,41 @@ const std = @import("std");
 
 const key_value_separator = ": ";
 
-threadlocal var line_buffer = [_]u8{0} ** 1024;
-var title_buffer = [_]u8{0} ** 1024;
-var artist_buffer = [_]u8{0} ** 1024;
-var file_buffer = [_]u8{0} ** 1024;
-var stdout_buffer: [1024]u8 = undefined;
-
-var line_lock = std.Thread.Mutex{};
 var playing = false;
 
-threadlocal var mpd_reader: std.net.Stream.Reader = undefined;
-threadlocal var mpd_writer: std.net.Stream.Writer = undefined;
-
-fn connect() !std.net.Stream {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
-    const alloc = arena.allocator();
-    const stream = blk: {
-        const port = if (std.posix.getenv("MPD_PORT")) |port| try std.fmt.parseInt(u16, port, 10) else 6600;
-        if (std.posix.getenv("MPD_HOST")) |host| {
-            if (std.net.tcpConnectToHost(alloc, host, port)) |stream| break :blk stream else |_| {}
+fn connect(alloc: std.mem.Allocator, io: std.Io, env: *const std.process.Environ.Map, client: *std.http.Client) !*std.http.Client.Connection {
+    const connection = blk: {
+        const port = if (env.get("MPD_PORT")) |port| try std.fmt.parseInt(u16, port, 10) else 6600;
+        if (env.get("MPD_HOST")) |host| {
+            break :blk try client.connectTcp(try .init(host), port, .plain);
         }
-        if (std.posix.getenv("XDG_RUNTIME_DIR")) |runtime_dir| {
+        if (env.get("XDG_RUNTIME_DIR")) |runtime_dir| {
             const path = try std.mem.concat(alloc, u8, &.{ runtime_dir, "/mpd/socket" });
             defer alloc.free(path);
-            if (std.net.connectUnixSocket(path)) |stream| break :blk stream else |_| {}
+            // if (client.connectUnix(path)) |conn| break :blk conn else |_| {}
         }
-        if (std.net.connectUnixSocket("/run/mpd/socket")) |stream| break :blk stream else |_| {}
-        break :blk try std.net.tcpConnectToHost(alloc, "localhost", port);
+        // if (client.connectUnix("/run/mpd/socket")) |conn| break :blk conn else |_| {}
+        break :blk try client.connectTcp(try .init("localhost"), port, .plain);
     };
-    mpd_reader = stream.reader(&line_buffer);
-    mpd_writer = stream.writer(&.{});
-    const reply = try mpd_reader.interface().takeSentinel('\n');
+    errdefer connection.destroy(io);
+    const reply = try connection.reader().takeSentinel('\n');
     if (!std.mem.startsWith(u8, reply, "OK MPD ")) return error.MissingMpdReply;
-    return stream;
+    return connection;
 }
 
-fn printTime(writer: *std.io.Writer, seconds: f32) !void {
+fn printTime(writer: *std.Io.Writer, seconds: f32) !void {
     const minutes: u32 = @intFromFloat(seconds / 60);
     const seconds_wrapped: u32 = @intFromFloat(@mod(seconds, 60));
     try writer.print("{:0>1}:{:0>2}", .{ minutes, seconds_wrapped });
 }
 
-fn print() !void {
-    line_lock.lock();
-    defer line_lock.unlock();
+fn print(io: std.Io, conn: *std.http.Client.Connection) !void {
+    var title_buffer = [_]u8{0} ** 1024;
+    var artist_buffer = [_]u8{0} ** 1024;
+    var file_buffer = [_]u8{0} ** 1024;
+    var stdout_buffer: [1024]u8 = undefined;
 
-    var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
+    var stdout_writer = std.Io.File.stdout().writer(io, &stdout_buffer);
     const stdout = &stdout_writer.interface;
     var artist: ?[]const u8 = null;
     var title: ?[]const u8 = null;
@@ -56,8 +44,9 @@ fn print() !void {
     var elapsed: f32 = 0;
     var duration: f32 = 0;
     var state: []const u8 = undefined;
-    try mpd_writer.interface.writeAll("command_list_begin\ncurrentsong\nstatus\ncommand_list_end\n");
-    while (mpd_reader.interface().takeSentinel('\n')) |line| {
+    try conn.writer().writeAll("command_list_begin\ncurrentsong\nstatus\ncommand_list_end\n");
+    try conn.writer().flush();
+    while (conn.reader().takeSentinel('\n')) |line| {
         if (std.mem.eql(u8, line, "OK")) break else if (std.mem.startsWith(u8, line, "ACK")) {
             std.log.err("{s}", .{line});
             return error.MpdError;
@@ -95,39 +84,43 @@ fn print() !void {
     }
 }
 
-fn interval() !void {
-    const stream = try connect();
-    defer stream.close();
-
+fn interval(io: std.Io, connection: *std.http.Client.Connection) !void {
     while (true) {
-        if (playing) try print() else {
-            try mpd_writer.interface.writeAll("ping\n");
-            if (mpd_reader.interface().takeSentinel('\n')) |line| {
+        if (playing) try print(io, connection) else {
+            try connection.writer().writeAll("ping\n");
+            try connection.writer().flush();
+            if (connection.reader().takeSentinel('\n')) |line| {
                 if (!std.mem.eql(u8, line, "OK")) {
                     std.log.err("{s}", .{line});
                     return error.MpdError;
                 }
             } else |err| return err;
         }
-        std.Thread.sleep(1000 * std.time.ns_per_ms);
+        try io.sleep(.fromSeconds(1), .awake);
     }
 }
 
-pub fn main() !void {
-    const stream = try connect();
-    defer stream.close();
+pub fn main(init: std.process.Init) !void {
+    var client = std.http.Client{ .allocator = init.gpa, .io = init.io };
+    defer client.deinit();
 
-    try print();
-    const interval_thread = try std.Thread.spawn(.{}, interval, .{});
+    const conn = try connect(init.gpa, init.io, init.environ_map, &client);
+    defer conn.destroy(init.io);
+    try print(init.io, conn);
+    var interval_task = try init.io.concurrent(interval, .{ init.io, conn });
+    defer interval_task.cancel(init.io) catch {};
+
+    const conn2 = try connect(init.gpa, init.io, init.environ_map, &client);
+    defer conn2.destroy(init.io);
     while (true) {
-        try mpd_writer.interface.writeAll("idle player\n");
-        while (mpd_reader.interface().takeSentinel('\n')) |line| {
+        try conn2.writer().writeAll("idle player\n");
+        try conn2.writer().flush();
+        while (conn2.reader().takeSentinel('\n')) |line| {
             if (std.mem.eql(u8, line, "OK")) break else if (std.mem.startsWith(u8, line, "ACK")) {
                 std.log.err("{s}", .{line});
                 return error.MpdError;
             }
         } else |err| return err;
-        try print();
+        try print(init.io, conn2);
     }
-    interval_thread.join();
 }

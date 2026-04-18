@@ -39,19 +39,19 @@ fn parseLine(reader: *std.Io.Reader, stat_i: std.math.IntFittingRange(0, MAX_COR
     return percentage;
 }
 
-pub fn main() !void {
-    var stdout_writer = std.fs.File.stdout().writer(&STDOUT_BUFFER);
+pub fn main(init: std.process.Init) !void {
+    var stdout_writer = std.Io.File.stdout().writer(init.io, &STDOUT_BUFFER);
     const stdout = &stdout_writer.interface;
 
-    var args = std.process.args();
+    var args = init.minimal.args.iterate();
     _ = args.skip();
     const interval = if (args.next()) |arg| try std.fmt.parseUnsigned(u64, arg, 10) else 1000;
     const colors = try parseColors(&args);
 
-    while (true) : (std.Thread.sleep(interval * std.time.ns_per_ms)) {
-        const file = try std.fs.openFileAbsolute("/proc/stat", .{});
-        defer file.close();
-        var reader = file.reader(&line_buf);
+    while (true) : (try std.Io.sleep(init.io, .fromMilliseconds(@intCast(interval)), .awake)) {
+        const file = try std.Io.Dir.openFileAbsolute(init.io, "/proc/stat", .{});
+        defer file.close(init.io);
+        var reader = file.reader(init.io, &line_buf);
 
         const total = try parseLine(&reader.interface, 0);
         try writePercentage(stdout, total);

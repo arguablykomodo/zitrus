@@ -13,12 +13,20 @@ pub fn build(b: *std.Build) void {
                 .root_source_file = b.path("src/" ++ name ++ ".zig"),
                 .target = target,
                 .optimize = optimize,
+                .imports = if (std.mem.eql(u8, name, "pulseaudio")) blk: {
+                    const translate_c = b.addTranslateC(.{
+                        .root_source_file = b.path("src/pulseaudio.h"),
+                        .target = target,
+                        .optimize = optimize,
+                    });
+                    translate_c.linkSystemLibrary("libpulse", .{});
+                    break :blk &.{.{
+                        .name = "pulseaudioc",
+                        .module = translate_c.createModule(),
+                    }};
+                } else &.{},
             }),
         });
-        if (std.mem.eql(u8, name, "pulseaudio")) {
-            exe.linkLibC();
-            exe.linkSystemLibrary("libpulse");
-        }
         const install = b.addInstallArtifact(exe, .{});
         b.getInstallStep().dependOn(&install.step);
         const build_step = b.step(name, "Build the `" ++ name ++ "` program");
