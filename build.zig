@@ -19,7 +19,7 @@ pub fn build(b: *std.Build) void {
                         .target = target,
                         .optimize = optimize,
                     });
-                    translate_c.linkSystemLibrary("libpulse", .{});
+                    translate_c.linkSystemLibrary("pulse", .{});
                     break :blk &.{.{
                         .name = "pulseaudioc",
                         .module = translate_c.createModule(),
