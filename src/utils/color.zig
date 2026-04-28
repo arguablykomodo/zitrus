@@ -1,14 +1,11 @@
 const std = @import("std");
 
-const MAX_COLORS = 8;
-const ColorI = std.math.IntFittingRange(0, MAX_COLORS);
-
-var color_buffer: [MAX_COLORS]u32 = undefined;
+var color_buffer: [8]u32 = undefined;
 
 pub fn parseColors(args: *std.process.Args.Iterator) ![]const u32 {
-    var i: ColorI = 0;
+    var i: usize = 0;
     while (args.next()) |arg| : (i += 1) {
-        if (i == MAX_COLORS) break;
+        if (i == color_buffer.len) break;
         color_buffer[i] = try std.fmt.parseUnsigned(u32, arg, 16);
     }
     return color_buffer[0..i];
@@ -18,7 +15,7 @@ pub fn getColor(value: f32, colors: []const u32) ?u32 {
     if (colors.len == 0) return null else if (colors.len == 1) return colors[0];
 
     const mapped = value * @as(f32, @floatFromInt(colors.len - 1));
-    const i: ColorI = @intFromFloat(mapped);
+    const i: usize = @intFromFloat(mapped);
     const c0 = colors[i];
     const c1 = colors[@min(i + 1, colors.len - 1)];
     const t = mapped - @floor(mapped);

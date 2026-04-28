@@ -1,14 +1,14 @@
 const std = @import("std");
 
-const programs = .{ "cpu", "ram", "net", "bspwm", "mpd", "pulseaudio" };
-
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    const programs = .{ "cpu", "ram", "net", "bspwm", "mpd", "pulseaudio" };
     inline for (programs) |name| {
         const exe = b.addExecutable(.{
             .name = "zitrus-" ++ name,
+            .use_llvm = std.mem.eql(u8, name, "pulseaudio"),
             .root_module = b.createModule(.{
                 .root_source_file = b.path("src/" ++ name ++ ".zig"),
                 .target = target,

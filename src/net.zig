@@ -1,11 +1,6 @@
 const std = @import("std");
 
-var column: u4 = undefined;
-var prev_bytes: u64 = 0;
-var line_buf: [6 + 1 + (1 + 19) * 16]u8 = undefined; // name + colon + (space + u64) * columns
-var stdout_buffer: [1024]u8 = undefined;
-
-fn parseLine(reader: *std.Io.Reader) !?u64 {
+fn parseLine(reader: *std.Io.Reader, column: u4) !?u64 {
     const line = if (reader.takeSentinel('\n')) |l| l else |err| switch (err) {
         error.EndOfStream => return null,
         else => return err,
@@ -23,27 +18,30 @@ fn parseLine(reader: *std.Io.Reader) !?u64 {
 }
 
 pub fn main(init: std.process.Init) !void {
+    var stdout_buffer: [1024]u8 = undefined;
     var stdout_writer = std.Io.File.stdout().writer(init.io, &stdout_buffer);
     const stdout = &stdout_writer.interface;
 
     var args = init.minimal.args.iterate();
     const launch_arg = args.next().?;
 
-    if (args.next()) |arg| {
-        column = if (std.mem.eql(u8, arg, "down")) 0 else if (std.mem.eql(u8, arg, "up")) 8 else {
+    const column: u4 = if (args.next()) |arg|
+        if (std.mem.eql(u8, arg, "down")) 0 else if (std.mem.eql(u8, arg, "up")) 8 else {
             std.log.err("argument must be \"down\" or \"up\", instead found \"{s}\"", .{arg});
             std.process.exit(1);
-        };
-    } else {
-        try stdout.print("usage: {s} down|up [interval]\n", .{launch_arg});
-        return;
-    }
+        }
+    else {
+        std.log.err("usage: {s} down|up [interval]\n", .{launch_arg});
+        std.process.exit(1);
+    };
 
     const interval = if (args.next()) |arg| try std.fmt.parseUnsigned(u64, arg, 10) else 1000;
 
+    var prev_bytes: u64 = 0;
     while (true) : (try std.Io.sleep(init.io, .fromMilliseconds(@intCast(interval)), .awake)) {
         const file = try std.Io.Dir.openFileAbsolute(init.io, "/proc/net/dev", .{});
         defer file.close(init.io);
+        var line_buf: [6 + 1 + (1 + 19) * 16]u8 = undefined; // name + colon + (space + u64) * columns
         var reader = file.reader(init.io, &line_buf);
 
         _ = try reader.interface.discardDelimiterInclusive('\n'); // header 1
@@ -51,7 +49,7 @@ pub fn main(init: std.process.Init) !void {
         _ = try reader.interface.discardDelimiterInclusive('\n'); // loopback
 
         var new_bytes: u64 = 0;
-        while (try parseLine(&reader.interface)) |bytes| {
+        while (try parseLine(&reader.interface, column)) |bytes| {
             new_bytes += bytes;
         }
 

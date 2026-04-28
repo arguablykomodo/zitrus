@@ -1,9 +1,5 @@
 const std = @import("std");
 
-var REPORT_BUFFER: [1024]u8 = undefined;
-var PIPE_BUFFER: [256]u8 = undefined;
-var STDOUT_BUFFER: [1024]u8 = undefined;
-
 fn formatDesktop(writer: *std.Io.Writer, name: []const u8, focused: bool, focus_color: []const u8) !void {
     if (focused) try writer.print("%{{B{s}}}", .{focus_color});
     try writer.print("%{{A1:bspc desktop -f {s}:}} {s} %{{A}}", .{ name, name });
@@ -11,7 +7,8 @@ fn formatDesktop(writer: *std.Io.Writer, name: []const u8, focused: bool, focus_
 }
 
 pub fn main(init: std.process.Init) !void {
-    var stdout_writer = std.Io.File.stdout().writer(init.io, &STDOUT_BUFFER);
+    var stdout_buffer: [1024]u8 = undefined;
+    var stdout_writer = std.Io.File.stdout().writer(init.io, &stdout_buffer);
     const stdout = &stdout_writer.interface;
 
     var args = init.minimal.args.iterate();
@@ -24,7 +21,8 @@ pub fn main(init: std.process.Init) !void {
         .stdout = .pipe,
     });
     defer process.kill(init.io);
-    var reader = process.stdout.?.reader(init.io, &REPORT_BUFFER);
+    var report_buffer: [1024]u8 = undefined;
+    var reader = process.stdout.?.reader(init.io, &report_buffer);
 
     while (true) {
         const input = try reader.interface.takeSentinel('\n');

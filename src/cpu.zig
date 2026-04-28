@@ -3,44 +3,40 @@ const parseColors = @import("utils/color.zig").parseColors;
 const writeBar = @import("utils/bar.zig").writeBar;
 const writePercentage = @import("utils/percentage.zig").writePercentage;
 
-const MAX_CORES = 64;
-const LINE_COLUMNS = 10;
-
 const CoreStat = struct {
     idle: u32,
     total: u32,
 };
 
-var STDOUT_BUFFER: [1024]u8 = undefined;
-var stats = [_]CoreStat{.{ .total = 0, .idle = 0 }} ** MAX_CORES;
-var line_buf: [4 + (1 + 10) * LINE_COLUMNS]u8 = undefined; // name + (space + u32) * columns
-
-fn parseLine(reader: *std.Io.Reader, stat_i: std.math.IntFittingRange(0, MAX_CORES)) !f32 {
+fn parseLine(reader: *std.Io.Reader, stat: *CoreStat) !f32 {
     const line = try reader.takeSentinel('\n');
 
     var tokens = std.mem.tokenizeScalar(u8, line, ' ');
     _ = tokens.next(); // skip cpu name
 
-    var stat = CoreStat{ .idle = 0, .total = 0 };
+    var new_stat = CoreStat{ .idle = 0, .total = 0 };
 
-    var i: std.math.IntFittingRange(0, LINE_COLUMNS - 1) = 0;
+    var i: usize = 0;
     while (tokens.next()) |token| : (i += 1) {
         const value = try std.fmt.parseUnsigned(u32, token, 10);
-        stat.total += value;
+        new_stat.total += value;
         if (i == 3 or i == 4) {
-            stat.idle += value;
+            new_stat.idle += value;
         }
     }
 
-    const new_idle: f32 = @floatFromInt(stat.idle - stats[stat_i].idle);
-    const new_total: f32 = @floatFromInt(stat.total - stats[stat_i].total);
+    const new_idle: f32 = @floatFromInt(new_stat.idle - stat.idle);
+    const new_total: f32 = @floatFromInt(new_stat.total - stat.total);
     const percentage = 1 - new_idle / new_total;
-    stats[stat_i] = stat;
+    stat.* = new_stat;
     return percentage;
 }
 
 pub fn main(init: std.process.Init) !void {
-    var stdout_writer = std.Io.File.stdout().writer(init.io, &STDOUT_BUFFER);
+    var stats = [_]CoreStat{.{ .total = 0, .idle = 0 }} ** 64;
+
+    var stdout_buffer: [1024]u8 = undefined;
+    var stdout_writer = std.Io.File.stdout().writer(init.io, &stdout_buffer);
     const stdout = &stdout_writer.interface;
 
     var args = init.minimal.args.iterate();
@@ -51,15 +47,16 @@ pub fn main(init: std.process.Init) !void {
     while (true) : (try std.Io.sleep(init.io, .fromMilliseconds(@intCast(interval)), .awake)) {
         const file = try std.Io.Dir.openFileAbsolute(init.io, "/proc/stat", .{});
         defer file.close(init.io);
+        var line_buf: [4 + (1 + 10) * 10]u8 = undefined; // name + (space + u32) * columns
         var reader = file.reader(init.io, &line_buf);
 
-        const total = try parseLine(&reader.interface, 0);
+        const total = try parseLine(&reader.interface, &stats[0]);
         try writePercentage(stdout, total);
         try stdout.writeByte(' ');
 
-        var i: std.math.IntFittingRange(0, MAX_CORES) = 1;
+        var i: usize = 1;
         while ((try reader.interface.takeByte()) != 'i') : (i += 1) {
-            const percentage = try parseLine(&reader.interface, i);
+            const percentage = try parseLine(&reader.interface, &stats[i]);
             try writeBar(stdout, percentage, colors);
         }
         try stdout.writeByte('\n');

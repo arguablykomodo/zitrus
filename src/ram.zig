@@ -3,9 +3,6 @@ const parseColors = @import("utils/color.zig").parseColors;
 const writeBar = @import("utils/bar.zig").writeBar;
 const writePercentage = @import("utils/percentage.zig").writePercentage;
 
-var line_buf: [16 + 10 + 3]u8 = undefined; // row name + places for a u32 + unit
-var stdout_buffer: [1024]u8 = undefined;
-
 fn parseLine(reader: *std.Io.Reader) !u32 {
     const line = try reader.takeSentinel('\n');
 
@@ -16,6 +13,7 @@ fn parseLine(reader: *std.Io.Reader) !u32 {
 }
 
 pub fn main(init: std.process.Init) !void {
+    var stdout_buffer: [1024]u8 = undefined;
     var stdout_writer = std.Io.File.stdout().writer(init.io, &stdout_buffer);
     const stdout = &stdout_writer.interface;
 
@@ -27,6 +25,7 @@ pub fn main(init: std.process.Init) !void {
     while (true) : (try init.io.sleep(.fromMilliseconds(@intCast(interval)), .awake)) {
         const file = try std.Io.Dir.openFileAbsolute(init.io, "/proc/meminfo", .{});
         defer file.close(init.io);
+        var line_buf: [16 + 10 + 3]u8 = undefined; // row name + u32 + unit
         var reader = file.reader(init.io, &line_buf);
 
         const total: f32 = @floatFromInt(try parseLine(&reader.interface)); // MemTotal

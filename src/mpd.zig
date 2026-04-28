@@ -1,9 +1,5 @@
 const std = @import("std");
 
-const key_value_separator = ": ";
-
-var playing = false;
-
 fn connect(alloc: std.mem.Allocator, io: std.Io, env: *const std.process.Environ.Map, client: *std.http.Client) !*std.http.Client.Connection {
     const connection = blk: {
         const port = if (env.get("MPD_PORT")) |port| try std.fmt.parseInt(u16, port, 10) else 6600;
@@ -30,7 +26,7 @@ fn printTime(writer: *std.Io.Writer, seconds: f32) !void {
     try writer.print("{:0>1}:{:0>2}", .{ minutes, seconds_wrapped });
 }
 
-fn print(io: std.Io, conn: *std.http.Client.Connection) !void {
+fn print(io: std.Io, conn: *std.http.Client.Connection, playing: *bool) !void {
     var title_buffer = [_]u8{0} ** 1024;
     var artist_buffer = [_]u8{0} ** 1024;
     var file_buffer = [_]u8{0} ** 1024;
@@ -51,11 +47,11 @@ fn print(io: std.Io, conn: *std.http.Client.Connection) !void {
             std.log.err("{s}", .{line});
             return error.MpdError;
         }
-        var split = std.mem.splitSequence(u8, line, key_value_separator);
+        var split = std.mem.splitSequence(u8, line, ": ");
         const key = split.first();
         const val = split.rest();
         if (std.mem.eql(u8, key, "state")) {
-            playing = std.mem.eql(u8, val, "play");
+            @atomicStore(bool, playing, std.mem.eql(u8, val, "play"), .unordered);
             state = val;
         } else if (std.mem.eql(u8, key, "file")) {
             @memcpy(file_buffer[0..val.len], val);
@@ -84,9 +80,9 @@ fn print(io: std.Io, conn: *std.http.Client.Connection) !void {
     }
 }
 
-fn interval(io: std.Io, connection: *std.http.Client.Connection) !void {
+fn interval(io: std.Io, connection: *std.http.Client.Connection, playing: *bool) !void {
     while (true) {
-        if (playing) try print(io, connection) else {
+        if (@atomicLoad(bool, playing, .unordered)) try print(io, connection, playing) else {
             try connection.writer().writeAll("ping\n");
             try connection.writer().flush();
             if (connection.reader().takeSentinel('\n')) |line| {
@@ -101,13 +97,15 @@ fn interval(io: std.Io, connection: *std.http.Client.Connection) !void {
 }
 
 pub fn main(init: std.process.Init) !void {
+    var playing = false;
+
     var client = std.http.Client{ .allocator = init.gpa, .io = init.io };
     defer client.deinit();
 
     const conn = try connect(init.gpa, init.io, init.environ_map, &client);
     defer conn.destroy(init.io);
-    try print(init.io, conn);
-    var interval_task = try init.io.concurrent(interval, .{ init.io, conn });
+    try print(init.io, conn, &playing);
+    var interval_task = try init.io.concurrent(interval, .{ init.io, conn, &playing });
     defer interval_task.cancel(init.io) catch {};
 
     const conn2 = try connect(init.gpa, init.io, init.environ_map, &client);
@@ -121,6 +119,6 @@ pub fn main(init: std.process.Init) !void {
                 return error.MpdError;
             }
         } else |err| return err;
-        try print(init.io, conn2);
+        try print(init.io, conn2, &playing);
     }
 }
