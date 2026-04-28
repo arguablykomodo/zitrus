@@ -47,7 +47,7 @@ pub fn main(init: std.process.Init) !void {
     while (true) : (try std.Io.sleep(init.io, .fromMilliseconds(@intCast(interval)), .awake)) {
         const file = try std.Io.Dir.openFileAbsolute(init.io, "/proc/stat", .{});
         defer file.close(init.io);
-        var line_buf: [4 + (1 + 10) * 10]u8 = undefined; // name + (space + u32) * columns
+        var line_buf: [1024]u8 = undefined;
         var reader = file.reader(init.io, &line_buf);
 
         const total = try parseLine(&reader.interface, &stats[0]);

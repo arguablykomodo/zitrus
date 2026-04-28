@@ -25,7 +25,7 @@ pub fn main(init: std.process.Init) !void {
     while (true) : (try init.io.sleep(.fromMilliseconds(@intCast(interval)), .awake)) {
         const file = try std.Io.Dir.openFileAbsolute(init.io, "/proc/meminfo", .{});
         defer file.close(init.io);
-        var line_buf: [16 + 10 + 3]u8 = undefined; // row name + u32 + unit
+        var line_buf: [1024]u8 = undefined;
         var reader = file.reader(init.io, &line_buf);
 
         const total: f32 = @floatFromInt(try parseLine(&reader.interface)); // MemTotal

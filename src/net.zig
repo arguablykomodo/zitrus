@@ -41,7 +41,7 @@ pub fn main(init: std.process.Init) !void {
     while (true) : (try std.Io.sleep(init.io, .fromMilliseconds(@intCast(interval)), .awake)) {
         const file = try std.Io.Dir.openFileAbsolute(init.io, "/proc/net/dev", .{});
         defer file.close(init.io);
-        var line_buf: [6 + 1 + (1 + 19) * 16]u8 = undefined; // name + colon + (space + u64) * columns
+        var line_buf: [1024]u8 = undefined;
         var reader = file.reader(init.io, &line_buf);
 
         _ = try reader.interface.discardDelimiterInclusive('\n'); // header 1

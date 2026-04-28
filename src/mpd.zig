@@ -27,9 +27,9 @@ fn printTime(writer: *std.Io.Writer, seconds: f32) !void {
 }
 
 fn print(io: std.Io, conn: *std.http.Client.Connection, playing: *bool) !void {
-    var title_buffer = [_]u8{0} ** 1024;
-    var artist_buffer = [_]u8{0} ** 1024;
-    var file_buffer = [_]u8{0} ** 1024;
+    var title_buffer: [1024]u8 = undefined;
+    var artist_buffer: [1024]u8 = undefined;
+    var file_buffer: [1024]u8 = undefined;
     var stdout_buffer: [1024]u8 = undefined;
 
     var stdout_writer = std.Io.File.stdout().writer(io, &stdout_buffer);
