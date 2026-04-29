@@ -17,6 +17,7 @@ pub fn main(init: std.process.Init) !void {
     var stdout_writer = std.Io.File.stdout().writer(init.io, &stdout_buffer);
     const stdout = &stdout_writer.interface;
 
+    const format: @import("utils/markup.zig").Format = if (init.environ_map.contains("MARKUP_FORMAT_PANGO")) .pango else .lemonbar;
     var args = init.minimal.args.iterate();
     _ = args.skip();
     const interval = if (args.next()) |arg| try std.fmt.parseUnsigned(u64, arg, 10) else 1000;
@@ -35,7 +36,7 @@ pub fn main(init: std.process.Init) !void {
         const percentage = 1 - available / total;
         try writePercentage(stdout, percentage);
         try stdout.writeByte(' ');
-        try writeBar(stdout, percentage, colors);
+        try writeBar(stdout, percentage, colors, format);
         try stdout.writeByte('\n');
         try stdout.flush();
     }

@@ -1,7 +1,12 @@
 # Zitrus
 
 A set of opinionated system information fetchers written in Zig, for use in
-[lemonbar](https://github.com/LemonBoy/bar).
+various status-bars.
+
+The markup format used defaults to lemonbar-style (`%{F#abcdef}`), but by
+setting the env var MARKUP_FORMAT_PANGO=1 it will output pango-style markup
+(`<span color="#abcdef">`). Some features (such as click actions) are only
+available in the lemonbar markup format.
 
 ## Building
 
@@ -45,7 +50,8 @@ Displays download/upload speed of all interfaces (excluding loopback).
 ### `bspwm`
 
 Displays list of current occupied bspwm desktops, with the focused desktop
-highlighted. Requires `bspc` to be on `$PATH`.
+highlighted. Requires `bspc` to be on `$PATH`. Includes click-to-focus actions
+when using lemonbar markup.
 
 <pre><b>zitrus-bspwm</b> <i>monitor_name</i> [<i>focus_color</i>]</pre>
 

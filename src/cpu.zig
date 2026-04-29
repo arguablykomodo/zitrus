@@ -35,6 +35,7 @@ fn parseLine(reader: *std.Io.Reader, stat: *CoreStat) !f32 {
 pub fn main(init: std.process.Init) !void {
     var stats = [_]CoreStat{.{ .total = 0, .idle = 0 }} ** 64;
 
+    const format: @import("utils/markup.zig").Format = if (init.environ_map.contains("MARKUP_FORMAT_PANGO")) .pango else .lemonbar;
     var stdout_buffer: [1024]u8 = undefined;
     var stdout_writer = std.Io.File.stdout().writer(init.io, &stdout_buffer);
     const stdout = &stdout_writer.interface;
@@ -57,7 +58,7 @@ pub fn main(init: std.process.Init) !void {
         var i: usize = 1;
         while ((try reader.interface.takeByte()) != 'i') : (i += 1) {
             const percentage = try parseLine(&reader.interface, &stats[i]);
-            try writeBar(stdout, percentage, colors);
+            try writeBar(stdout, percentage, colors, format);
         }
         try stdout.writeByte('\n');
         try stdout.flush();
