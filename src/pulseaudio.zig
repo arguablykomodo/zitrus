@@ -28,7 +28,7 @@ fn sinkInfoCallback(
     const volume: f32 = @floatFromInt(c.pa_cvolume_avg(&info.?.volume));
     const normalized = volume * 100 / @as(f32, @floatFromInt(c.PA_VOLUME_NORM));
     const stdout = &state.stdout_writer.interface;
-    stdout.print("{}\n", .{@as(u8, @intFromFloat(@round(normalized)))}) catch std.process.exit(1);
+    stdout.print("{: >3}\n", .{@as(u8, @intFromFloat(@round(normalized)))}) catch std.process.exit(1);
     stdout.flush() catch std.process.exit(1);
 }
 

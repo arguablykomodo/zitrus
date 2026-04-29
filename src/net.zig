@@ -55,7 +55,7 @@ pub fn main(init: std.process.Init) !void {
 
         const speed = (new_bytes - prev_bytes) * std.time.ms_per_s / interval;
 
-        try stdout.printByteSize(speed, .decimal, .{ .precision = 0 });
+        try stdout.printByteSize(speed, .decimal, .{ .precision = 0, .width = 7 });
         try stdout.writeByte('\n');
         try stdout.flush();
 
