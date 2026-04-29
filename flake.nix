@@ -8,6 +8,7 @@
   outputs =
     {
       nixpkgs,
+      self,
       ...
     }:
     let
@@ -16,11 +17,18 @@
     in
     {
       formatter.${system} = pkgs.nixfmt-tree;
+      devShells.${system}.default = pkgs.mkShell {
+        packages = with pkgs; [ zls ];
+        inputsFrom = [ self.packages.${system}.zitrus ];
+      };
       packages.${system}.zitrus = pkgs.stdenv.mkDerivation {
         pname = "zitrus";
         version = "1.0.0";
         src = ./.;
-        buildInputs = with pkgs; [ zig libpulseaudio ];
+        buildInputs = with pkgs; [
+          zig
+          libpulseaudio
+        ];
         buildPhase = "zig build -Doptimize=ReleaseSafe -p $out";
         installPhase = "";
       };
