@@ -4,7 +4,7 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const programs = .{ .cpu, .ram, .net, .bspwm, .mpd, .pulseaudio };
+    const programs = .{ .cpu, .ram, .net, .bspwm, .mpd, .pulseaudio, .mpris };
     inline for (programs) |name| {
         const exe = b.addExecutable(.{
             .name = "zitrus-" ++ @tagName(name),
@@ -27,6 +27,16 @@ pub fn build(b: *std.Build) void {
                         break :blk &.{.{
                             .name = "pulseaudioc",
                             .module = translate_c.createModule(),
+                        }};
+                    },
+                    .mpris => blk: {
+                        const goose_dep = b.dependency("goose", .{
+                            .target = target,
+                            .optimize = optimize,
+                        });
+                        break :blk &.{.{
+                            .name = "goose",
+                            .module = goose_dep.module("goose"),
                         }};
                     },
                     else => &.{},

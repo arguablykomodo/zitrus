@@ -72,3 +72,14 @@ Displays volume of default audio sink as a percentage. Requires linking with
 `libc` and `libpulse`.
 
 <pre><b>zitrus-pulseaudio</b></pre>
+
+### `mpris`
+
+Displays current track artist, title, duration and elapsed time, alongside
+play/shuffle/loop status.
+
+Warning: Can sometimes show mismatched information when there are multiple
+players, and incomplete data when started in the middle of an already playing
+track. These issues are to be fixed in the future.
+
+<pre><b>zitrus-mpris</b></pre>
