@@ -112,11 +112,11 @@ const State = struct {
         const pos_s = @as(u64, @intCast(self.position)) / std.time.us_per_s;
         const pos_m = pos_s / 60;
         try writer.print("{}:{:0>2}", .{ pos_m, @mod(pos_s, 60) });
-        if (self.length) |l| {
+        if (self.length) |l| if (l > 0) {
             const len_s = @as(u64, @intCast(l)) / std.time.us_per_s;
             const len_m = len_s / 60;
             try writer.print("/{}:{:0>2}", .{ len_m, @mod(len_s, 60) });
-        }
+        };
         try writer.writeAll("]");
 
         if (self.shuffle or self.loop_status != .none) try writer.writeAll(" ");
