@@ -13,11 +13,24 @@ const State = struct {
     rate: f64 = 1.0,
     shuffle: bool = false,
     position: i64 = 0,
+    last_update: std.Io.Timestamp = undefined,
 
     trackid: ?[]const u8 = null,
     length: ?i64 = null,
     title: ?[]const u8 = null,
     artist: ?[]const u8 = null,
+
+    pub fn updatePosition(self: *State) void {
+        const now = std.Io.Clock.awake.now(self.io);
+        const elapsed = self.last_update.durationTo(now);
+        self.position += @intFromFloat(@as(f64, @floatFromInt(elapsed.toMicroseconds())) * self.rate);
+        self.last_update = now;
+    }
+
+    pub fn setPosition(self: *State, new_positon: i64) void {
+        self.position = new_positon;
+        self.last_update = std.Io.Clock.awake.now(self.io);
+    }
 
     pub fn updateProxy(self: *State, name: [:0]const u8) !void {
         if (self.name) |n| self.alloc.free(n);
@@ -27,7 +40,7 @@ const State = struct {
         self.loop_status = .none;
         self.rate = 1.0;
         self.shuffle = false;
-        self.position = 0;
+        self.setPosition(0);
         self.trackid = null;
         self.length = null;
         self.title = null;
@@ -44,6 +57,7 @@ const State = struct {
     pub fn updateProperties(self: *State, properties: []const DictEntry) !void {
         for (properties) |e| {
             if (std.mem.eql(u8, e.key.s, "PlaybackStatus")) {
+                const previous_status = self.playback_status;
                 self.playback_status = if (std.mem.eql(u8, e.value.s.s, "Playing"))
                     .playing
                 else if (std.mem.eql(u8, e.value.s.s, "Paused"))
@@ -52,6 +66,8 @@ const State = struct {
                     .stopped
                 else
                     return error.InvalidPlaybackStatus;
+                if (previous_status == .playing) self.updatePosition()
+                else self.last_update = std.Io.Clock.awake.now(self.io);
             } else if (std.mem.eql(u8, e.key.s, "LoopStatus")) {
                 self.loop_status = if (std.mem.eql(u8, e.value.s.s, "None"))
                     .none
@@ -68,7 +84,7 @@ const State = struct {
             } else if (std.mem.eql(u8, e.key.s, "Metadata")) {
                 try self.updateMetadata(e.value.e);
             } else if (std.mem.eql(u8, e.key.s, "Position")) {
-                self.position = e.value.x;
+                self.setPosition(e.value.x);
             }
         }
     }
@@ -80,7 +96,7 @@ const State = struct {
             } else if (std.mem.eql(u8, entry.key.s, "mpris:trackid")) {
                 const new_trackid = try self.alloc.dupe(u8, entry.value.o.s);
                 if (self.trackid) |t| {
-                    if (!std.mem.eql(u8, t, new_trackid)) self.position = 0;
+                    if (!std.mem.eql(u8, t, new_trackid)) self.setPosition(0);
                     self.alloc.free(t);
                 }
                 self.trackid = new_trackid;
@@ -195,7 +211,7 @@ fn handleSignal(data: ?*anyopaque, msg: goose.core.Message) void {
     } else if (std.mem.eql(u8, member, "Seeked")) {
         var decoder = goose.message.BodyDecoder.fromMessage(state.alloc, msg);
         const time = decoder.decode(i64) catch unreachable;
-        state.position = time;
+        state.setPosition(time);
     }
     state.print() catch unreachable;
 }
@@ -203,10 +219,10 @@ fn handleSignal(data: ?*anyopaque, msg: goose.core.Message) void {
 fn interval(io: std.Io, state: *State) !void {
     while (true) {
         if (state.playback_status == .playing) {
+            state.updatePosition();
             try state.print();
-            state.position += @intFromFloat(std.time.us_per_s * state.rate);
         }
-        try io.sleep(.fromSeconds(1), .awake);
+        try io.sleep(.fromMicroseconds(@intFromFloat(std.time.us_per_s / @max(1, state.rate))), .awake);
     }
 }
 
