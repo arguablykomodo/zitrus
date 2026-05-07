@@ -132,18 +132,15 @@ const State = struct {
         }
 
         if (self.artist != null or self.title != null) try writer.writeAll(" ");
-        if (self.artist) |a| try fmtTrimmed(writer, a, 20);
+        if (self.artist) |a| try printTrimmed(writer, a, 20);
         if (self.artist != null and self.title != null) try writer.writeAll(" - ");
-        if (self.title) |t| try fmtTrimmed(writer, t, 40);
+        if (self.title) |t| try printTrimmed(writer, t, 40);
 
         try writer.writeAll(" [");
-        const pos_s = @as(u64, @intCast(self.position)) / std.time.us_per_s;
-        const pos_m = pos_s / 60;
-        try writer.print("{}:{:0>2}", .{ pos_m, @mod(pos_s, 60) });
+        try printTime(writer, self.position);
         if (self.length) |l| if (l > 0) {
-            const len_s = @as(u64, @intCast(l)) / std.time.us_per_s;
-            const len_m = len_s / 60;
-            try writer.print("/{}:{:0>2}", .{ len_m, @mod(len_s, 60) });
+            try writer.writeByte('/');
+            try printTime(writer, l);
         };
         try writer.writeAll("]");
 
@@ -159,7 +156,15 @@ const State = struct {
         try writer.flush();
     }
 
-    fn fmtTrimmed(writer: *std.Io.Writer, str: []const u8, max_len: usize) !void {
+    fn printTime(writer: *std.Io.Writer, time: i64) !void {
+        const seconds = @as(u64, @intCast(time)) / std.time.us_per_s;
+        const minutes = seconds / 60;
+        const hours = minutes / 60;
+        if (hours > 0) try writer.print("{}:", .{hours});
+        try writer.print("{}:{:0>2}", .{@mod(minutes, 60), @mod(seconds, 60)});
+    }
+
+    fn printTrimmed(writer: *std.Io.Writer, str: []const u8, max_len: usize) !void {
         var utf8 = (try std.unicode.Utf8View.init(str)).iterator();
         var chars: usize = 0;
         while (utf8.nextCodepointSlice()) |char| {
