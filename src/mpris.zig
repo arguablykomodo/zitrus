@@ -100,13 +100,21 @@ const State = struct {
         switch (self.playback_status) {
             .playing => try writer.writeAll("\u{23F8}\u{FE0E}"),
             .paused => try writer.writeAll("\u{23F5}\u{FE0E}"),
-            .stopped => try writer.writeAll("\u{23F9}\u{FE0E}"),
+            .stopped => return,
         }
 
         if (self.artist != null or self.title != null) try writer.writeAll(" ");
-        if (self.artist) |a| try writer.writeAll(a);
+        if (self.artist) |a| {
+            const max_len = 20;
+            try writer.writeAll(a[0..@min(a.len, max_len)]);
+            if (a.len > max_len) try writer.writeAll("\u{2026}");
+        }
         if (self.artist != null and self.title != null) try writer.writeAll(" - ");
-        if (self.title) |t| try writer.writeAll(t);
+        if (self.title) |t| {
+            const max_len = 40;
+            try writer.writeAll(t[0..@min(t.len, max_len)]);
+            if (t.len > max_len) try writer.writeAll("\u{2026}");
+        }
 
         try writer.writeAll(" [");
         const pos_s = @as(u64, @intCast(self.position)) / std.time.us_per_s;
