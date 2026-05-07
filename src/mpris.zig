@@ -107,11 +107,8 @@ const State = struct {
     pub fn print(self: State) !void {
         var stdout_buffer: [1024]u8 = undefined;
         var stdout_writer = std.Io.File.stdout().writer(self.io, &stdout_buffer);
-        try stdout_writer.interface.print("{f}\n", .{self});
-        try stdout_writer.interface.flush();
-    }
+        const writer = &stdout_writer.interface;
 
-    pub fn format(self: State, writer: *std.Io.Writer) !void {
         switch (self.playback_status) {
             .playing => try writer.writeAll("\u{23F8}\u{FE0E}"),
             .paused => try writer.writeAll("\u{23F5}\u{FE0E}"),
@@ -119,17 +116,9 @@ const State = struct {
         }
 
         if (self.artist != null or self.title != null) try writer.writeAll(" ");
-        if (self.artist) |a| {
-            const max_len = 20;
-            try writer.writeAll(a[0..@min(a.len, max_len)]);
-            if (a.len > max_len) try writer.writeAll("\u{2026}");
-        }
+        if (self.artist) |a| try fmtTrimmed(writer, a, 20);
         if (self.artist != null and self.title != null) try writer.writeAll(" - ");
-        if (self.title) |t| {
-            const max_len = 40;
-            try writer.writeAll(t[0..@min(t.len, max_len)]);
-            if (t.len > max_len) try writer.writeAll("\u{2026}");
-        }
+        if (self.title) |t| try fmtTrimmed(writer, t, 40);
 
         try writer.writeAll(" [");
         const pos_s = @as(u64, @intCast(self.position)) / std.time.us_per_s;
@@ -149,6 +138,20 @@ const State = struct {
             .track => try writer.writeAll("\u{1F502}\u{FE0E}"),
             .playlist => try writer.writeAll("\u{1F501}\u{FE0E}"),
         }
+
+        try writer.writeByte('\n');
+        try writer.flush();
+    }
+
+    fn fmtTrimmed(writer: *std.Io.Writer, str: []const u8, max_len: usize) !void {
+        var utf8 = (try std.unicode.Utf8View.init(str)).iterator();
+        var chars: usize = 0;
+        while (utf8.nextCodepointSlice()) |char| {
+            try writer.writeAll(char);
+            chars += 1;
+            if (chars >= max_len) break;
+        }
+        if (utf8.nextCodepointSlice() != null) try writer.writeAll("\u{2026}");
     }
 };
 
