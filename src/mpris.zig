@@ -2,48 +2,14 @@ const std = @import("std");
 const goose = @import("goose");
 const GStr = goose.core.value.GStr;
 
-const PlaybackStatus = enum {
-    playing,
-    paused,
-    stopped,
-
-    pub fn from(str: []const u8) PlaybackStatus {
-        return if (std.mem.eql(u8, str, "Playing"))
-            .playing
-        else if (std.mem.eql(u8, str, "Paused"))
-            .paused
-        else if (std.mem.eql(u8, str, "Stopped"))
-            .stopped
-        else
-            unreachable;
-    }
-};
-
-const LoopStatus = enum {
-    none,
-    track,
-    playlist,
-
-    pub fn from(str: []const u8) LoopStatus {
-        return if (std.mem.eql(u8, str, "None"))
-            .none
-        else if (std.mem.eql(u8, str, "Track"))
-            .track
-        else if (std.mem.eql(u8, str, "Playlist"))
-            .playlist
-        else
-            unreachable;
-    }
-};
-
 const State = struct {
     alloc: std.mem.Allocator,
     io: std.Io,
     conn: *goose.Connection,
 
     name: ?[:0]const u8 = null,
-    playback_status: PlaybackStatus = .stopped,
-    loop_status: LoopStatus = .none,
+    playback_status: enum { playing, paused, stopped } = .stopped,
+    loop_status: enum { none, track, playlist } = .none,
     rate: f64 = 1.0,
     shuffle: bool = false,
     position: i64 = 0,
@@ -78,9 +44,23 @@ const State = struct {
     pub fn updateProperties(self: *State, properties: []const DictEntry) !void {
         for (properties) |e| {
             if (std.mem.eql(u8, e.key.s, "PlaybackStatus")) {
-                self.playback_status = PlaybackStatus.from(e.value.s.s);
+                self.playback_status = if (std.mem.eql(u8, e.value.s.s, "Playing"))
+                    .playing
+                else if (std.mem.eql(u8, e.value.s.s, "Paused"))
+                    .paused
+                else if (std.mem.eql(u8, e.value.s.s, "Stopped"))
+                    .stopped
+                else
+                    return error.InvalidPlaybackStatus;
             } else if (std.mem.eql(u8, e.key.s, "LoopStatus")) {
-                self.loop_status = LoopStatus.from(e.value.s.s);
+                self.loop_status = if (std.mem.eql(u8, e.value.s.s, "None"))
+                    .none
+                else if (std.mem.eql(u8, e.value.s.s, "Track"))
+                    .track
+                else if (std.mem.eql(u8, e.value.s.s, "Playlist"))
+                    .playlist
+                else
+                    return error.InvalidLoopStatus;
             } else if (std.mem.eql(u8, e.key.s, "Rate")) {
                 self.rate = e.value.d;
             } else if (std.mem.eql(u8, e.key.s, "Shuffle")) {
