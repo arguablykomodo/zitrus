@@ -39,7 +39,9 @@ const LoopStatus = enum {
 const State = struct {
     alloc: std.mem.Allocator,
     io: std.Io,
+    conn: *goose.Connection,
 
+    name: ?[:0]const u8 = null,
     playback_status: PlaybackStatus = .stopped,
     loop_status: LoopStatus = .none,
     rate: f64 = 1.0,
@@ -51,19 +53,52 @@ const State = struct {
     title: ?[]const u8 = null,
     artist: ?[]const u8 = null,
 
-    pub fn updatePlayback(self: *State, new_status: PlaybackStatus) void {
-        if (self.playback_status == .stopped and new_status == .playing) {
-            self.position = 0;
-        }
-        self.playback_status = new_status;
+    pub fn updateProxy(self: *State, name: [:0]const u8) !void {
+        if (self.name) |n| self.alloc.free(n);
+        self.name = name;
+
+        self.playback_status = .stopped;
+        self.loop_status = .none;
+        self.rate = 1.0;
+        self.shuffle = false;
+        self.position = 0;
+        self.trackid = null;
+        self.length = null;
+        self.title = null;
+        self.artist = null;
+
+        const prop_proxy = goose.proxy.Proxy.init(self.conn, name, "/org/mpris/MediaPlayer2", "org.freedesktop.DBus.Properties");
+        var props_result = try prop_proxy.call("GetAll", .{GStr.new("org.mpris.MediaPlayer2.Player")});
+        defer props_result.deinit();
+        var prop_reader = props_result.reader();
+        const props = try prop_reader.decode([]const DictEntry);
+        try self.updateProperties(props);
     }
 
-    pub fn updateMetadata(self: *State, metadata: []const DictEntry) void {
+    pub fn updateProperties(self: *State, properties: []const DictEntry) !void {
+        for (properties) |e| {
+            if (std.mem.eql(u8, e.key.s, "PlaybackStatus")) {
+                self.playback_status = PlaybackStatus.from(e.value.s.s);
+            } else if (std.mem.eql(u8, e.key.s, "LoopStatus")) {
+                self.loop_status = LoopStatus.from(e.value.s.s);
+            } else if (std.mem.eql(u8, e.key.s, "Rate")) {
+                self.rate = e.value.d;
+            } else if (std.mem.eql(u8, e.key.s, "Shuffle")) {
+                self.shuffle = e.value.b;
+            } else if (std.mem.eql(u8, e.key.s, "Metadata")) {
+                try self.updateMetadata(e.value.e);
+            } else if (std.mem.eql(u8, e.key.s, "Position")) {
+                self.position = e.value.x;
+            }
+        }
+    }
+
+    pub fn updateMetadata(self: *State, metadata: []const DictEntry) !void {
         for (metadata) |entry| {
             if (std.mem.eql(u8, entry.key.s, "mpris:length")) {
                 self.length = entry.value.x;
             } else if (std.mem.eql(u8, entry.key.s, "mpris:trackid")) {
-                const new_trackid = self.alloc.dupe(u8, entry.value.o.s) catch unreachable;
+                const new_trackid = try self.alloc.dupe(u8, entry.value.o.s);
                 if (self.trackid) |t| {
                     if (!std.mem.eql(u8, t, new_trackid)) self.position = 0;
                     self.alloc.free(t);
@@ -74,7 +109,7 @@ const State = struct {
                 if (entry.value.s.s.len == 0) {
                     self.title = null;
                 } else {
-                    self.title = self.alloc.dupe(u8, entry.value.s.s) catch unreachable;
+                    self.title = try self.alloc.dupe(u8, entry.value.s.s);
                 }
             } else if (std.mem.eql(u8, entry.key.s, "xesam:artist")) {
                 if (entry.value.as.len > 0) {
@@ -82,7 +117,7 @@ const State = struct {
                     if (entry.value.as[0].s.len == 0) {
                         self.artist = null;
                     } else {
-                        self.artist = self.alloc.dupe(u8, entry.value.as[0].s) catch unreachable;
+                        self.artist = try self.alloc.dupe(u8, entry.value.as[0].s);
                     }
                 } else self.artist = null;
             }
@@ -154,32 +189,31 @@ const DictEntry = struct {
     value: Variant,
 };
 
-fn onPropChange(data: ?*anyopaque, msg: goose.core.Message) void {
+fn handleSignal(data: ?*anyopaque, msg: goose.core.Message) void {
     const state: *State = @ptrCast(@alignCast(data));
-    var decoder = goose.message.BodyDecoder.fromMessage(state.alloc, msg);
-    _ = decoder.decode(GStr) catch unreachable;
-    const dict = decoder.decode([]const DictEntry) catch unreachable;
-    for (dict) |e| {
-        if (std.mem.eql(u8, e.key.s, "PlaybackStatus")) {
-            state.playback_status = PlaybackStatus.from(e.value.s.s);
-        } else if (std.mem.eql(u8, e.key.s, "LoopStatus")) {
-            state.loop_status = LoopStatus.from(e.value.s.s);
-        } else if (std.mem.eql(u8, e.key.s, "Rate")) {
-            state.rate = e.value.d;
-        } else if (std.mem.eql(u8, e.key.s, "Shuffle")) {
-            state.shuffle = e.value.b;
-        } else if (std.mem.eql(u8, e.key.s, "Metadata")) {
-            state.updateMetadata(e.value.e);
+
+    var sender: [:0]const u8 = undefined;
+    var member: [:0]const u8 = undefined;
+    for (msg.header.header_fields) |field| {
+        switch (field.value) {
+            .Sender => |s| sender = s,
+            .Member => |m| member = m,
+            else => {},
         }
     }
-    state.print() catch unreachable;
-}
 
-fn onSeek(data: ?*anyopaque, msg: goose.core.Message) void {
-    const state: *State = @ptrCast(@alignCast(data));
-    var decoder = goose.message.BodyDecoder.fromMessage(state.alloc, msg);
-    const time = decoder.decode(i64) catch unreachable;
-    state.position = time;
+    if (state.name == null or !std.mem.eql(u8, sender, state.name.?)) {
+        state.updateProxy(state.alloc.dupeZ(u8, sender) catch unreachable) catch unreachable;
+    } else if (std.mem.eql(u8, member, "PropertiesChanged")) {
+        var decoder = goose.message.BodyDecoder.fromMessage(state.alloc, msg);
+        _ = decoder.decode(GStr) catch unreachable;
+        const props = decoder.decode([]const DictEntry) catch unreachable;
+        state.updateProperties(props) catch unreachable;
+    } else if (std.mem.eql(u8, member, "Seeked")) {
+        var decoder = goose.message.BodyDecoder.fromMessage(state.alloc, msg);
+        const time = decoder.decode(i64) catch unreachable;
+        state.position = time;
+    }
     state.print() catch unreachable;
 }
 
@@ -194,23 +228,31 @@ fn interval(io: std.Io, state: *State) !void {
 }
 
 pub fn main(init: std.process.Init) !void {
-    var state = State{ .alloc = init.gpa, .io = init.io };
-
     var conn = try goose.Connection.init(init.gpa, .Session, init.io, init.environ_map);
     defer conn.close();
 
-    // const p = goose.proxy.Proxy.init(&conn, "org.mpris.MediaPlayer2", "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player");
-    // state.playback_status = PlaybackStatus.from((try p.getProperty(GStr, "PlaybackStatus")).s);
-    // state.loop_status = LoopStatus.from((try p.getProperty(GStr, "PlaybackStatus")).s);
-    // state.rate = try p.getProperty(f64, "Rate");
-    // state.shuffle = try p.getProperty(bool, "Shuffle");
-    // state.position = try p.getProperty(i64, "Position");
-    // state.updateMetadata(try p.getProperty([]const DictEntry, "Metadata"));
+    var state = State{ .alloc = init.gpa, .io = init.io, .conn = &conn };
 
-    try conn.addMatch("type=signal,interface=org.freedesktop.DBus.Properties,path_namespace=/org/mpris/MediaPlayer2");
+    {
+        const dbus_proxy = goose.proxy.Proxy.init(&conn, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus");
+        var names_result = try dbus_proxy.call("ListNames", .{});
+        defer names_result.deinit();
+        var names_reader = names_result.reader();
+        const names = try names_reader.decode([]const GStr);
+        for (names) |name| if (std.mem.startsWith(u8, name.s, "org.mpris.MediaPlayer2")) {
+            var unique_name_result = try dbus_proxy.call("GetNameOwner", .{name});
+            defer unique_name_result.deinit();
+            var unique_name_reader = unique_name_result.reader();
+            const unique_name = try unique_name_reader.decode(GStr);
+            try state.updateProxy(try init.gpa.dupeZ(u8, unique_name.s));
+            break;
+        };
+    }
+
+    try conn.addMatch("type=signal,interface=org.freedesktop.DBus.Properties,path=/org/mpris/MediaPlayer2");
     try conn.addMatch("type=signal,interface=org.mpris.MediaPlayer2.Player");
-    try conn.registerSignalHandler("org.freedesktop.DBus.Properties", "PropertiesChanged", onPropChange, &state);
-    try conn.registerSignalHandler("org.mpris.MediaPlayer2.Player", "Seeked", onSeek, &state);
+    try conn.registerSignalHandler("org.freedesktop.DBus.Properties", "PropertiesChanged", handleSignal, &state);
+    try conn.registerSignalHandler("org.mpris.MediaPlayer2.Player", "Seeked", handleSignal, &state);
 
     var interval_task = try init.io.concurrent(interval, .{ init.io, &state });
     defer interval_task.cancel(init.io) catch {};
