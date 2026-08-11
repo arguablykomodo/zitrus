@@ -4,11 +4,11 @@
 
 linkFarm "zig-packages" [
   {
-    name = "goose-1.0.0-e9MzMGKcAgD7vlp_acJYt6g430wQcrAxUKWHEEF0_Hcc";
+    name = "goose-2.0.0-e9MzMLIWAwBBJ1LmB8bFKZ22LY5Bw27Yt0flH0QgH3G2";
     path = fetchgit {
       url = "https://github.com/luxluth/goose";
-      rev = "387de965800bf0f6116d51f45a9412cba0801975";
-      hash = "sha256-SWx6eoQ47DcIdQEdTaKb7b2Rn/6qB+XhCYTBMtMrGGw=";
+      rev = "e49a81dae35fb04fd0314a800b1e5e34f61e251b";
+      hash = "sha256-y75SJDpnuKs4BL0u7YHXO+RmMoO5i78blV6uEj9QmUE=";
     };
   }
 ]
