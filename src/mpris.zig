@@ -153,8 +153,11 @@ const State = struct {
         const seconds = @as(u64, @intCast(time)) / std.time.us_per_s;
         const minutes = seconds / 60;
         const hours = minutes / 60;
-        if (hours > 0) try writer.print("{}:", .{hours});
-        try writer.print("{}:{:0>2}", .{ @mod(minutes, 60), @mod(seconds, 60) });
+        if (hours > 0)
+            try writer.print("{}:{:0>2}:", .{ hours, @mod(minutes, 60) })
+        else
+            try writer.print("{}:", .{@mod(minutes, 60)});
+        try writer.print("{:0>2}", .{@mod(seconds, 60)});
     }
 
     fn printTrimmed(writer: *std.Io.Writer, str: []const u8, max_len: usize) !void {
