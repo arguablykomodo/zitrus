@@ -3,7 +3,7 @@
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
-    zon2nix.url = "github:Sh4pe/zon2nix?ref=update-zig-0-16";
+    zon2nix.url = "github:jcollie/zon2nix";
     zon2nix.inputs.nixpkgs.follows = "nixpkgs";
   };
 
@@ -22,22 +22,24 @@
       formatter.${system} = pkgs.nixfmt-tree;
       devShells.${system}.default = pkgs.mkShell {
         packages = with pkgs; [
-          zls
-          zon2nix.outputs.packages.${system}.default
+          zls_0_16
+          zon2nix.outputs.packages.${system}.zon2nix
         ];
         inputsFrom = [ self.packages.${system}.default ];
       };
-      packages.${system}.default = pkgs.stdenv.mkDerivation {
+      packages.${system}.default = pkgs.stdenv.mkDerivation (finalAttrs: {
         pname = "zitrus";
         version = "1.0.0";
         src = ./.;
         nativeBuildInputs = with pkgs; [
-          zig
+          zig_0_16
           libpulseaudio
         ];
-        postPatch = ''
-          ln -s ${pkgs.callPackage ./deps.nix { }} zig-pkg
-        '';
-      };
+        zigBuildFlags = [
+          "--system"
+          "${pkgs.callPackage ./build.zig.zon.nix { }}"
+        ];
+        zigCheckFlags = finalAttrs.zigBuildFlags;
+      });
     };
 }
