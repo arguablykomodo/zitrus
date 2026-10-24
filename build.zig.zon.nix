@@ -5,7 +5,7 @@
   fetchurl,
   fetchzip,
   runCommand,
-  zig_0_16,
+  zig_0_17,
   zstd,
   name ? "zig-packages",
   # Accepted and ignored. Expressions from zon2nix before 0.8 built the
@@ -39,21 +39,21 @@ let
 
   # Every package, by the hash Zig knows it by, as Nix fetches it.
   packages = {
-    "goose-2.0.0-e9MzMLIWAwBBJ1LmB8bFKZ22LY5Bw27Yt0flH0QgH3G2" = fetchZigGit {
+    "goose-4.0.1-e9MzMJg3BABXxlhF04kBiycvfMTgQNn4VuI3I7yU6PWw" = fetchZigGit {
       name = "goose";
       url = "https://github.com/luxluth/goose.git";
-      rev = "e49a81dae35fb04fd0314a800b1e5e34f61e251b";
-      hash = "sha256-y75SJDpnuKs4BL0u7YHXO+RmMoO5i78blV6uEj9QmUE=";
+      rev = "8e24c3c864a27d26d8cf6f9dfee92951eb47a7a7";
+      hash = "sha256-JguZxnlSYnvx+Hsmyg/oJ/jpb8/zGrfbXq/rzHIsgtI=";
     };
   };
 
   # The packages whose own manifest declares a dependency by `.path`. Zig
-  # 0.16.0 cannot build these through `zig build --system`: it spins in
-  # userspace forever, because a `.path` dependency's hash is computed against
-  # the system package directory during the fetch and against the real global
-  # cache afterwards, and in that mode the two disagree. A package that wants
-  # `--system` copies each of these into its build root and passes `--fork=`;
-  # see the README.
+  # 0.17.0 cannot build these through `zig build --system`: it roots the system
+  # package directory at its absolute store path, so a `.path` dependency
+  # inside one of these resolves to an absolute path, which it refuses with
+  # "expected path relative to build root; found absolute path". A package
+  # that wants `--system` copies each of these into its build root and passes
+  # `--fork=` with a relative path; see the README.
   pathDependencyPackages = [
   ];
 in
@@ -76,28 +76,31 @@ in
 # wants the packages builds them again even when a cache already holds them.
 runCommand name
   {
-    nativeBuildInputs = [ zig_0_16 ];
+    nativeBuildInputs = [ zig_0_17 ];
     passthru = { inherit pathDependencyPackages; };
   }
   ''
     mkdir "$out"
 
-    # Each package gets a directory of its own to work in, since `zig fetch`
-    # leaves what it unpacked in `zig-pkg/` under the directory it ran in.
+    # Zig 0.17 runs `zig fetch` in a build runner it compiles into the global
+    # cache the first time, which takes a minute or more. Every package shares
+    # one cache, then, and it is compiled once here before they are fetched
+    # several at a time, rather than by each of them at once.
+    export ZIG_GLOBAL_CACHE_DIR="$TMPDIR/cache"
+    mkdir -p "$ZIG_GLOBAL_CACHE_DIR"
+    zig fetch --help >/dev/null
+
+    # Without `--save`, which wants a project to save into, Zig 0.17 unpacks
+    # nothing where it can be found: what it keeps is `p/<hash>.tar.gz` in
+    # the global cache, the package filtered by its manifest's `.paths` under
+    # a single directory named by its hash. Unpacking that gives the
+    # directory `zig build --system` wants.
     unpack() {
       local work="$TMPDIR/work/$1"
-      mkdir -p "$work/src" "$work/cache/tmp"
-      # workaround https://codeberg.org/ziglang/zig/issues/31866
-      # https://github.com/Cloudef/zig2nix/issues/54
-      touch "$work/src/build.zig"
-      # `zig fetch` recompresses every package into `p/` at gzip level 9 for
-      # its own cache, which is nearly all of its time and of no use here.
-      # With `p` a file rather than a directory that step fails at once --
-      # Zig warns, and carries on -- and the package is left in `zig-pkg/`.
-      touch "$work/cache/p"
+      mkdir -p "$work"
 
       local hash
-      if ! hash="$(cd "$work/src" && zig fetch --global-cache-dir "$work/cache" "$2" 2>"$work/log")"; then
+      if ! hash="$(cd "$work" && zig fetch "$2" 2>"$work/log")"; then
         cat "$work/log" >&2
         return 1
       fi
@@ -105,7 +108,8 @@ runCommand name
         echo "$2 is $hash to Zig, not $1" >&2
         return 1
       fi
-      mv "$work/src/zig-pkg/$1" "$out/$1"
+      tar -xzf "$ZIG_GLOBAL_CACHE_DIR/p/$1.tar.gz" -C "$out"
+      rm -f "$ZIG_GLOBAL_CACHE_DIR/p/$1.tar.gz"
       rm -rf "$work"
     }
     export -f unpack

@@ -3,12 +3,12 @@
     .version = "0.1.0",
     .dependencies = .{
         .goose = .{
-            .url = "git+https://github.com/luxluth/goose.git#e49a81dae35fb04fd0314a800b1e5e34f61e251b",
-            .hash = "goose-2.0.0-e9MzMLIWAwBBJ1LmB8bFKZ22LY5Bw27Yt0flH0QgH3G2",
+            .url = "git+https://github.com/luxluth/goose.git#8e24c3c864a27d26d8cf6f9dfee92951eb47a7a7",
+            .hash = "goose-4.0.1-e9MzMJg3BABXxlhF04kBiycvfMTgQNn4VuI3I7yU6PWw",
         },
     },
     .fingerprint = 0xa735bcf848811718, // Changing this has security and trust implications.
-    .minimum_zig_version = "0.16.0",
+    .minimum_zig_version = "0.17.0",
     .paths = .{
         "build.zig",
         "build.zig.zon",

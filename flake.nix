@@ -22,7 +22,7 @@
       formatter.${system} = pkgs.nixfmt-tree;
       devShells.${system}.default = pkgs.mkShell {
         packages = with pkgs; [
-          zls_0_16
+          # No zls 0.17 in nixpkgs yet
           zon2nix.outputs.packages.${system}.zon2nix
         ];
         inputsFrom = [ self.packages.${system}.default ];
@@ -32,7 +32,7 @@
         version = "1.0.0";
         src = ./.;
         nativeBuildInputs = with pkgs; [
-          zig_0_16
+          zig_0_17
           libpulseaudio
         ];
         zigBuildFlags = [

@@ -238,8 +238,5 @@ pub fn main(init: std.process.Init) !void {
     var interval_task = try init.io.concurrent(interval, .{ init.io, &state });
     defer interval_task.cancel(init.io) catch {};
 
-    while (true) {
-        var msg = try conn.waitMessage();
-        conn.freeMessage(&msg);
-    }
+    try conn.serve();
 }

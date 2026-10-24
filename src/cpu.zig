@@ -33,7 +33,7 @@ fn parseLine(reader: *std.Io.Reader, stat: *CoreStat) !f32 {
 }
 
 pub fn main(init: std.process.Init) !void {
-    var stats = [_]CoreStat{.{ .total = 0, .idle = 0 }} ** 64;
+    var stats: [64]CoreStat = @splat(.{ .total = 0, .idle = 0 });
 
     const format: @import("utils/markup.zig").Format = if (init.environ_map.contains("MARKUP_FORMAT_PANGO")) .pango else .lemonbar;
     var stdout_buffer: [1024]u8 = undefined;
