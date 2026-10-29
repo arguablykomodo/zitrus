@@ -39,11 +39,11 @@ let
 
   # Every package, by the hash Zig knows it by, as Nix fetches it.
   packages = {
-    "goose-4.0.1-e9MzMJg3BABXxlhF04kBiycvfMTgQNn4VuI3I7yU6PWw" = fetchZigGit {
+    "goose-4.0.1-e9MzMBVCBADybYeYJdXwlMmvgn6SlqJeh7x2APurH3Gy" = fetchZigGit {
       name = "goose";
       url = "https://github.com/luxluth/goose.git";
-      rev = "8e24c3c864a27d26d8cf6f9dfee92951eb47a7a7";
-      hash = "sha256-JguZxnlSYnvx+Hsmyg/oJ/jpb8/zGrfbXq/rzHIsgtI=";
+      rev = "86c3c3360c42e190aafd1360b9fc9bee38b9c384";
+      hash = "sha256-Ua82D6NBsVzId79UF49J73cXEWkRVb5c3sMZtJdaPK8=";
     };
   };
 
