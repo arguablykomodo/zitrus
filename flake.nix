@@ -22,7 +22,7 @@
       formatter.${system} = pkgs.nixfmt-tree;
       devShells.${system}.default = pkgs.mkShell {
         packages = with pkgs; [
-          # No zls 0.17 in nixpkgs yet
+          zls_0_17
           zon2nix.outputs.packages.${system}.zon2nix
         ];
         inputsFrom = [ self.packages.${system}.default ];

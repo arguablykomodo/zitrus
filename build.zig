@@ -4,9 +4,11 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    const check = b.step("check", "Check if zitrus compiles");
+
     const programs = .{ .cpu, .ram, .net, .bspwm, .mpd, .pulseaudio, .mpris };
     inline for (programs) |name| {
-        const exe = b.addExecutable(.{
+        const options = std.Build.ExecutableOptions{
             .name = "zitrus-" ++ @tagName(name),
             .use_llvm = switch (name) {
                 .pulseaudio => true,
@@ -42,10 +44,14 @@ pub fn build(b: *std.Build) void {
                     else => &.{},
                 },
             }),
-        });
+        };
+        const exe = b.addExecutable(options);
         const install = b.addInstallArtifact(exe, .{});
         b.getInstallStep().dependOn(&install.step);
         const build_step = b.step(@tagName(name), "Build the `" ++ @tagName(name) ++ "` program");
         build_step.dependOn(&install.step);
+
+        const exe_check = b.addExecutable(options);
+        check.dependOn(&exe_check.step);
     }
 }
