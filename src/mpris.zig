@@ -3,6 +3,28 @@ const goose = @import("goose");
 const GStr = goose.core.value.GStr;
 const Dict = std.StringHashMap(goose.core.value.GVariant);
 
+fn printTime(writer: *std.Io.Writer, time: i64) !void {
+    const seconds = @as(u64, @intCast(time)) / std.time.us_per_s;
+    const minutes = seconds / 60;
+    const hours = minutes / 60;
+    if (hours > 0)
+        try writer.print("{}:{:0>2}:", .{ hours, @mod(minutes, 60) })
+    else
+        try writer.print("{}:", .{@mod(minutes, 60)});
+    try writer.print("{:0>2}", .{@mod(seconds, 60)});
+}
+
+fn printTrimmed(writer: *std.Io.Writer, str: []const u8, max_len: usize) !void {
+    var utf8 = (try std.unicode.Utf8View.init(str)).iterator();
+    var chars: usize = 0;
+    while (utf8.nextCodepointSlice()) |char| {
+        try writer.writeAll(char);
+        chars += 1;
+        if (chars >= max_len) break;
+    }
+    if (utf8.nextCodepointSlice() != null) try writer.writeAll("\u{2026}");
+}
+
 const Player = struct {
     alloc: std.mem.Allocator,
     io: std.Io,
@@ -154,28 +176,6 @@ const Player = struct {
         try writer.writeByte('\n');
         try writer.flush();
     }
-
-    fn printTime(writer: *std.Io.Writer, time: i64) !void {
-        const seconds = @as(u64, @intCast(time)) / std.time.us_per_s;
-        const minutes = seconds / 60;
-        const hours = minutes / 60;
-        if (hours > 0)
-            try writer.print("{}:{:0>2}:", .{ hours, @mod(minutes, 60) })
-        else
-            try writer.print("{}:", .{@mod(minutes, 60)});
-        try writer.print("{:0>2}", .{@mod(seconds, 60)});
-    }
-
-    fn printTrimmed(writer: *std.Io.Writer, str: []const u8, max_len: usize) !void {
-        var utf8 = (try std.unicode.Utf8View.init(str)).iterator();
-        var chars: usize = 0;
-        while (utf8.nextCodepointSlice()) |char| {
-            try writer.writeAll(char);
-            chars += 1;
-            if (chars >= max_len) break;
-        }
-        if (utf8.nextCodepointSlice() != null) try writer.writeAll("\u{2026}");
-    }
 };
 
 const State = struct {
@@ -198,23 +198,6 @@ const State = struct {
     pub fn deinit(self: *State) void {
         for (self.players.items) |*player| player.deinit();
         self.players.deinit(self.alloc);
-    }
-
-    pub fn addPlayer(self: *State, name: [:0]const u8, unique_name: [:0]const u8) !void {
-        try self.players.append(self.alloc, try Player.init(self.conn, name, unique_name));
-    }
-
-    pub fn removePlayer(self: *State, unique_name: [:0]const u8) void {
-        if (self.findPlayer(unique_name)) |i| {
-            self.players.items[i].deinit();
-            _ = self.players.swapRemove(i);
-        }
-    }
-
-    pub fn findPlayer(self: *const State, unique_name: [:0]const u8) ?usize {
-        return for (self.players.items, 0..) |player, i| {
-            if (std.mem.eql(u8, player.unique_name, unique_name)) break i;
-        } else null;
     }
 
     pub fn switchActive(self: *State, new_active: usize) !void {
@@ -244,37 +227,25 @@ pub fn main(init: std.process.Init) !void {
         var unique_name_result = try dbus_proxy.call("GetNameOwner", .{name});
         defer unique_name_result.deinit();
         const unique_name = try unique_name_result.expect(GStr);
-        try state.addPlayer(
+        try state.players.append(init.gpa, try Player.init(
+            &conn,
             try init.gpa.dupeSentinel(u8, name.s, 0),
             try init.gpa.dupeSentinel(u8, unique_name.s, 0),
-        );
+        ));
     };
 
     try conn.addMatch("type=signal,interface=org.freedesktop.DBus.Properties,path=/org/mpris/MediaPlayer2");
     try conn.addMatch("type=signal,interface=org.mpris.MediaPlayer2.Player");
     try conn.addMatch("type=signal,interface=org.freedesktop.DBus,member=NameOwnerChanged");
-    try conn.registerSignalHandler("org.freedesktop.DBus", "NameOwnerChanged", handleSignal, &state);
+
     try conn.registerSignalHandler("org.freedesktop.DBus.Properties", "PropertiesChanged", handleSignal, &state);
     try conn.registerSignalHandler("org.mpris.MediaPlayer2.Player", "Seeked", handleSignal, &state);
+    try conn.registerSignalHandler("org.freedesktop.DBus", "NameOwnerChanged", handleSignal, &state);
 
     var interval_task = try init.io.concurrent(interval, .{&state});
     defer interval_task.cancel(init.io) catch {};
 
     try conn.serve();
-}
-
-fn interval(state: *State) !void {
-    while (true) {
-        const rate = if (state.active) |active| blk: {
-            const player = &state.players.items[active];
-            if (player.playback_status == .playing) {
-                player.updatePosition();
-                try player.print();
-            }
-            break :blk player.rate;
-        } else 1;
-        try state.io.sleep(.fromMicroseconds(@intFromFloat(std.time.us_per_s / @max(1, rate))), .awake);
-    }
 }
 
 fn handleSignal(data: ?*anyopaque, msg: goose.core.Message) void {
@@ -290,33 +261,80 @@ fn handleSignal(data: ?*anyopaque, msg: goose.core.Message) void {
         }
     }
 
-    if (std.mem.eql(u8, member, "PropertiesChanged")) {
-        const player = state.findPlayer(sender) orelse return;
-        var decoder = goose.message.BodyDecoder.fromMessage(state.alloc, msg);
-        _ = decoder.decode(GStr) catch unreachable;
-        const props = decoder.decodeAlloc(Dict) catch unreachable;
-        state.players.items[player].updateProperties(props) catch unreachable;
-        state.switchActive(player) catch unreachable;
-    } else if (std.mem.eql(u8, member, "Seeked")) {
-        const player = state.findPlayer(sender) orelse return;
-        var decoder = goose.message.BodyDecoder.fromMessage(state.alloc, msg);
-        const time = decoder.decode(i64) catch unreachable;
-        state.players.items[player].setPosition(time);
-        state.switchActive(player) catch unreachable;
-    } else if (std.mem.eql(u8, member, "NameOwnerChanged")) {
-        var decoder = goose.message.BodyDecoder.fromMessage(state.alloc, msg);
-        const name = decoder.decode(GStr) catch unreachable;
-        _ = decoder.decode(GStr) catch unreachable;
-        const new_owner = decoder.decode(GStr) catch unreachable;
-        if (state.findPlayer(name.s)) |_| {
-            if (new_owner.s.len == 0) state.removePlayer(name.s);
-            state.switchActive(state.players.items.len -| 1) catch unreachable;
-        } else if (std.mem.startsWith(u8, name.s, "org.mpris.MediaPlayer2.") and new_owner.s.len != 0) {
-            state.addPlayer(
-                state.alloc.dupeSentinel(u8, name.s, 0) catch unreachable,
-                state.alloc.dupeSentinel(u8, new_owner.s, 0) catch unreachable,
-            ) catch unreachable;
-            state.switchActive(state.players.items.len -| 1) catch unreachable;
+    var decoder = goose.message.BodyDecoder.fromMessage(state.alloc, msg);
+
+    const result = if (std.mem.eql(u8, member, "PropertiesChanged"))
+        handlePropChange(state, sender, &decoder)
+    else if (std.mem.eql(u8, member, "Seeked"))
+        handleSeek(state, sender, &decoder)
+    else if (std.mem.eql(u8, member, "NameOwnerChanged"))
+        handleNameOwnerChange(state, &decoder)
+    else {};
+
+    if (result) |_| {} else |err| {
+        std.log.err("{}", .{err});
+    }
+}
+
+fn handlePropChange(state: *State, sender: [:0]const u8, decoder: *goose.message.BodyDecoder) !void {
+    _ = try decoder.decode(GStr);
+    const props = try decoder.decodeAlloc(Dict);
+    for (state.players.items, 0..) |*player, i| {
+        if (std.mem.eql(u8, player.unique_name, sender)) {
+            try player.updateProperties(props);
+            try state.switchActive(i);
+            return;
         }
+    }
+}
+
+fn handleSeek(state: *State, sender: [:0]const u8, decoder: *goose.message.BodyDecoder) !void {
+    const time = try decoder.decode(i64);
+    for (state.players.items, 0..) |*player, i| {
+        if (std.mem.eql(u8, player.unique_name, sender)) {
+            player.setPosition(time);
+            try state.switchActive(i);
+            return;
+        }
+    }
+}
+
+fn handleNameOwnerChange(state: *State, decoder: *goose.message.BodyDecoder) !void {
+    const name = try decoder.decode(GStr);
+    _ = try decoder.decode(GStr);
+    const new_owner = try decoder.decode(GStr);
+
+    for (state.players.items, 0..) |*player, i| {
+        if (std.mem.eql(u8, player.name, name.s)) {
+            if (new_owner.s.len == 0) {
+                player.deinit();
+                _ = state.players.swapRemove(i);
+                try state.switchActive(state.players.items.len -| 1);
+            }
+            return;
+        }
+    }
+
+    if (std.mem.startsWith(u8, name.s, "org.mpris.MediaPlayer2.") and new_owner.s.len != 0) {
+        try state.players.append(state.alloc, try Player.init(
+            state.conn,
+            try state.alloc.dupeSentinel(u8, name.s, 0),
+            try state.alloc.dupeSentinel(u8, new_owner.s, 0),
+        ));
+        try state.switchActive(state.players.items.len -| 1);
+    }
+}
+
+fn interval(state: *State) !void {
+    while (true) {
+        const rate = if (state.active) |active| blk: {
+            const player = &state.players.items[active];
+            if (player.playback_status == .playing) {
+                player.updatePosition();
+                try player.print();
+            }
+            break :blk player.rate;
+        } else 1;
+        try state.io.sleep(.fromMicroseconds(@intFromFloat(std.time.us_per_s / @max(1, rate))), .awake);
     }
 }
